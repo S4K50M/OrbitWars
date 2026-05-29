@@ -1,7 +1,7 @@
 from kaggle_environments import make
 
 env = make("orbit_wars", configuration={"seed": 42}, debug=True)
-env.run(["./agents/a-nearest-sniper.py", "./agents/b-Snipe+No-BOM.py"])
+env.run(["./agents/c-optimized-sniper.py", "./agents/b-Snipe+No-BOM.py"])
 
 # View result
 final = env.steps[-1]

@@ -200,7 +200,11 @@ SOFT_ACT_DEADLINE = 0.82
 HEAVY_PHASE_MIN_TIME = 0.16
 OPTIONAL_PHASE_MIN_TIME = 0.08
 HEAVY_ROUTE_PLANET_LIMIT = 32
-
+ 
+_log1000 = math.log(1000)
+SPEED_CACHE = []
+for i in range(1,1001):
+    SPEED_CACHE.append(1+(MAX_SPEED-1)*(math.log(i)/_log1000)**1.5)
 
 # ============================================================
 # Shared Types
@@ -214,7 +218,7 @@ Fleet = namedtuple(
 )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ShotOption:
     score: float
     src_id: int
@@ -226,7 +230,7 @@ class ShotOption:
     mission: str = "capture"
     anchor_turn: int | None = None
 
-@dataclass
+@dataclass(slots=True)
 class Mission:
     kind: str
     score: float
@@ -238,13 +242,14 @@ class Mission:
 # Physics
 # ============================================================
 
+# To comment
 def dist(ax, ay, bx, by):
-    return math.hypot(ax - bx, ay - by)
+    return math.sqrt((ax - bx)*(ax-bx)+(ay - by)*(ay-by))
 
 def dist_sq(ax,ay,bx,by):
-    return (ax-ay)**2+(bx-by)**2
+    return (ax-bx)*(ax-bx)+(ay-by)*(ay-by)
 
-
+#To comment
 def orbital_radius(planet):
     return dist(planet.x, planet.y, CENTER_X, CENTER_Y)
 
@@ -253,17 +258,18 @@ def orbital_radius_sq(planet):
 
 
 def is_static_planet(planet):
-    return orbital_radius(planet) + planet.radius >= ROTATION_LIMIT
+    return orbital_radius_sq(planet) >= (ROTATION_LIMIT-planet.radius)**2
 
 
 def fleet_speed(ships):
+    ships = int(ships)
     if ships <= 1:
         return 1.0
-    ratio = math.log(ships) / math.log(1000.0)
-    ratio = max(0.0, min(1.0, ratio))
-    return 1.0 + (MAX_SPEED - 1.0) * (ratio**1.5)
+    elif ships>= 1000:
+        return MAX_SPEED
+    return SPEED_CACHE[ships-1]
 
-
+# To Comment
 def point_to_segment_distance(px, py, x1, y1, x2, y2):
     dx = x2 - x1
     dy = y2 - y1
@@ -276,9 +282,21 @@ def point_to_segment_distance(px, py, x1, y1, x2, y2):
     proj_y = y1 + t * dy
     return dist(px, py, proj_x, proj_y)
 
+def point_to_segment_distance_sq(px, py, x1, y1, x2, y2):
+    dx = x2 - x1
+    dy = y2 - y1
+    seg_len_sq = dx * dx + dy * dy
+    if seg_len_sq <= 1e-9:
+        return dist_sq(px, py, x1, y1)
+    t = ((px - x1) * dx + (py - y1) * dy) / seg_len_sq
+    t = max(0.0, min(1.0, t))
+    proj_x = x1 + t * dx
+    proj_y = y1 + t * dy
+    return dist_sq(px, py, proj_x, proj_y)
+
 
 def segment_hits_sun(x1, y1, x2, y2, safety=SUN_SAFETY):
-    return point_to_segment_distance(CENTER_X, CENTER_Y, x1, y1, x2, y2) < SUN_R + safety
+    return point_to_segment_distance_sq(CENTER_X, CENTER_Y, x1, y1, x2, y2) < (SUN_R + safety)**2
 
 
 def launch_point(sx, sy, sr, angle):
@@ -315,11 +333,12 @@ def predict_planet_position(planet, initial_by_id, angular_velocity, turns):
     init = initial_by_id.get(planet.id)
     if init is None:
         return planet.x, planet.y
-    r = dist(init.x, init.y, CENTER_X, CENTER_Y)
-    if r + init.radius >= ROTATION_LIMIT:
+    r2 = dist_sq(init.x, init.y, CENTER_X, CENTER_Y)
+    if r2 >= (ROTATION_LIMIT-init.radius)**2:
         return planet.x, planet.y
     cur_ang = math.atan2(planet.y - CENTER_Y, planet.x - CENTER_X)
     new_ang = cur_ang + angular_velocity * turns
+    r = math.sqrt(r2)
     return (
         CENTER_X + r * math.cos(new_ang),
         CENTER_Y + r * math.sin(new_ang),
@@ -371,7 +390,7 @@ def estimate_arrival(sx, sy, sr, tx, ty, tr, ships):
 def travel_time(sx, sy, sr, tx, ty, tr, ships):
     est = estimate_arrival(sx, sy, sr, tx, ty, tr, ships)
     if est is None:
-        return 10**9
+        return 1e9
     return est[1]
 
 
@@ -381,14 +400,15 @@ def predict_target_position(target, turns, initial_by_id, ang_vel, comets, comet
     return predict_planet_position(target, initial_by_id, ang_vel, turns)
 
 
+# Tells if planet is static or not
 def target_can_move(target, initial_by_id, comet_ids):
     if target.id in comet_ids:
         return True
     init = initial_by_id.get(target.id)
     if init is None:
         return False
-    r = dist(init.x, init.y, CENTER_X, CENTER_Y)
-    return r + init.radius < ROTATION_LIMIT
+    r = dist_sq(init.x, init.y, CENTER_X, CENTER_Y)
+    return r<(ROTATION_LIMIT-init.radius)**2
 
 def search_safe_intercept(src, target, ships, initial_by_id, ang_vel, comets, comet_ids):
     # If the direct line is unsafe, scan future positions and keep the earliest
@@ -559,12 +579,28 @@ def fleet_target_planet(
         max_turns = min(HORIZON, FLEET_SWEEP_HORIZON)
         prev_x = fleet.x
         prev_y = fleet.y
+        viable_moving_targets = []
+        for planet in moving_targets:
+            dx = planet.x - fleet.x
+            dy = planet.y - fleet.y
+            
+            # 1. Bounding Box check: Is it physically too far away to reach in max_turns?
+            # 15 is a generous buffer for the planet's own orbital movement
+            max_dist = (speed * max_turns) + planet.radius + 15
+            if dx*dx + dy*dy > max_dist * max_dist:
+                continue 
+                
+            # 2. Directional Check (Dot Product): Is it entirely behind the fleet?
+            if dx * dir_x + dy * dir_y < -planet.radius - 15:
+                continue 
+                
+            viable_moving_targets.append(planet)
         for turn in range(1, max_turns + 1):
             if turn > best_time:
                 break
             cur_x = fleet.x + dir_x * speed * turn
             cur_y = fleet.y + dir_y * speed * turn
-            for planet in moving_targets:
+            for planet in viable_moving_targets:
                 pos = predict_target_position(
                     planet,
                     turn,
@@ -771,7 +807,7 @@ def count_players(planets, fleets):
 def nearest_distance_to_set(px, py, planets):
     if not planets:
         return 10**9
-    return min(dist(px, py, planet.x, planet.y) for planet in planets)
+    return min(dist_sq(px, py, planet.x, planet.y) for planet in planets)
 
 
 def indirect_features(planet, planets, player):
@@ -784,7 +820,7 @@ def indirect_features(planet, planets, player):
         d = dist(planet.x, planet.y, other.x, other.y)
         if d < 1:
             continue
-        factor = other.production / (d + 12.0)
+        factor = other.production / (d + 5.0)
         if other.owner == player:
             friendly += factor
         elif other.owner == -1:
@@ -976,8 +1012,7 @@ class WorldModel:
     def plan_shot(self, src_id, target_id, ships):
         ships = int(ships)
         key = (src_id, target_id, ships)
-        cached = self.shot_cache.get(key)
-        if key in self.shot_cache:
+        if (cached := self.shot_cache.get(key)) is not None:
             return cached
         src = self.planet_by_id[src_id]
         target = self.planet_by_id[target_id]
@@ -1358,15 +1393,18 @@ class WorldModel:
 # Strategy
 # ============================================================
 
-def planet_distance(first, second):
-    return math.hypot(first.x - second.x, first.y - second.y)
+
+def planet_distance_sq(first, second):
+    dx = first.x - second.x
+    dy = first.y - second.y
+    return dx*dx+dy*dy
 
 def nearest_sources_to_target(target, sources, top_k):
     if top_k <= 0 or len(sources) <= top_k:
         return sources
     return sorted(
         sources,
-        key=lambda src: (planet_distance(src, target), -int(src.ships), src.id),
+        key=lambda src: (planet_distance_sq(src, target), -int(src.ships), src.id),
     )[:top_k]
 
 
@@ -3197,7 +3235,7 @@ def plan_moves(world, deadline=None):
                 safe_allies,
                 key=lambda ally: (
                     frontier_distance.get(ally.id, 10**9),
-                    planet_distance(planet, ally),
+                    planet_distance_sq(planet, ally),
                 ),
             )
             aim = world.plan_shot(planet.id, retreat_target.id, available_now)
@@ -3254,19 +3292,19 @@ def plan_moves(world, deadline=None):
                 if stage_candidates:
                     front = min(
                         stage_candidates,
-                        key=lambda planet: planet_distance(rear, planet),
+                        key=lambda planet: planet_distance_sq(rear, planet),
                     )
                 else:
                     objective = min(
                         frontier_targets,
-                        key=lambda target: planet_distance(rear, target),
+                        key=lambda target: planet_distance_sq(rear, target),
                     )
                     remaining_fronts = [planet for planet in safe_fronts if planet.id != rear.id]
                     if not remaining_fronts:
                         continue
                     front = min(
                         remaining_fronts,
-                        key=lambda planet: planet_distance(planet, objective),
+                        key=lambda planet: planet_distance_sq(planet, objective),
                     )
 
                 if front.id == rear.id:
@@ -3308,7 +3346,7 @@ def plan_moves(world, deadline=None):
                 chosen = (target.id, aim)
                 break
             if chosen is None:
-                for target in sorted(world.enemy_planets, key=lambda planet: planet_distance(src, planet)):
+                for target in sorted(world.enemy_planets, key=lambda planet: planet_distance_sq(src, planet)):
                     aim = world.plan_shot(src.id, target.id, left)
                     if aim is not None and aim[1] < world.remaining_steps:
                         chosen = (target.id, aim)
