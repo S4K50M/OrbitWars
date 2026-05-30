@@ -37,7 +37,7 @@ SAFE_OPENING_PROD_THRESHOLD = 4
 SAFE_OPENING_TURN_LIMIT = 10
 ROTATING_OPENING_MAX_TURNS = 13
 ROTATING_OPENING_LOW_PROD = 2
-FOUR_PLAYER_ROTATING_REACTION_GAP = 1
+FOUR_PLAYER_ROTATING_REACTION_GAP = 3
 FOUR_PLAYER_ROTATING_SEND_RATIO = 0.72
 FOUR_PLAYER_ROTATING_TURN_LIMIT = 14
 
@@ -65,11 +65,11 @@ REINFORCE_VALUE_MULT = 1.35
 CRASH_EXPLOIT_VALUE_MULT = 1.18
 FINISHING_HOSTILE_VALUE_MULT = 1.15
 BEHIND_ROTATING_NEUTRAL_VALUE_MULT = 0.92
-FFA_OPPORTUNISM_ENABLED = False
+FFA_OPPORTUNISM_ENABLED = True
 EXPOSED_PLANET_VALUE_MULT = 1.55
 BLOOD_IN_WATER_VALUE_MULT = 1.28
 WEAKEST_ENEMY_VALUE_MULT = 1.12
-LET_THEM_FIGHT_PENALTY = 0.82
+LET_THEM_FIGHT_PENALTY = 0.6
 LEADER_DENIAL_ENABLED = False
 LEADER_DENIAL_PROD_GAP = 4
 LEADER_DENIAL_STRENGTH_GAP = 30
@@ -89,7 +89,7 @@ HOSTILE_REINFORCE_RATIO = 0.22
 HOSTILE_REINFORCE_CAP = 12
 STATIC_TARGET_MARGIN = 4
 CONTESTED_TARGET_MARGIN = 5
-FOUR_PLAYER_TARGET_MARGIN = 2
+FOUR_PLAYER_TARGET_MARGIN = 5
 LONG_TRAVEL_MARGIN_START = 18
 LONG_TRAVEL_MARGIN_DIVISOR = 3
 LONG_TRAVEL_MARGIN_CAP = 8
@@ -158,7 +158,7 @@ WAIT_STRIKE_ENABLED = True
 WAIT_STRIKE_DELAYS = (0, 2, 4, 6)
 WAIT_STRIKE_MAX_TARGETS = 6
 
-FOUR_SOURCE_SWARM_ENABLED = False
+FOUR_SOURCE_SWARM_ENABLED = True
 FOUR_SOURCE_ETA_TOLERANCE = 2
 FOUR_SOURCE_MIN_TARGET_SHIPS = 40
 FOUR_SOURCE_PLAN_PENALTY = 0.91
@@ -2488,6 +2488,111 @@ def build_crash_exploit_missions(world, policy, planned_commitments, modes):
 
     return missions
 
+def build_tot_swarm_missions(world, policy, planned_commitments, modes):
+    missions = []
+    targets = world.enemy_planets + (world.static_neutral_planets or world.neutral_planets)
+    
+    for target in targets:
+        allies_with_eta = []
+        for src in world.my_planets:
+            src_left = policy["attack_budget"].get(src.id, 0)
+            if src_left < PARTIAL_SOURCE_MIN_SHIPS: 
+                continue
+                
+            seeded = world.best_probe_aim(src.id, target.id, src_left, hints=(src_left,))
+            if seeded is None: 
+                continue
+                
+            probe_ships, probe_aim = seeded
+            angle, turns, _, _ = probe_aim
+            
+            allies_with_eta.append({
+                'src_id': src.id, 
+                'budget': src_left, 
+                'eta': turns, 
+                'angle': angle, 
+                'probe_ships': probe_ships
+            })
+            
+        if len(allies_with_eta) < 2:
+            continue
+            
+        # Sort by furthest distance first to establish the Anchor Turn
+        allies_with_eta.sort(key=lambda x: -x['eta'])
+        
+        existing_arrivals = [
+            int(math.ceil(eta)) for eta, owner, ships in world.arrivals_by_planet.get(target.id, []) 
+            if owner == world.player and ships > 0
+        ]
+        anchor_turn = max(existing_arrivals) if existing_arrivals else allies_with_eta[0]['eta']
+        
+        if not world.is_four_player and anchor_turn > 25:
+            continue
+
+        total_projected_force = 0
+        participating_allies = []
+        
+        for ally in allies_with_eta:
+            delay = anchor_turn - ally['eta']
+            if delay < 0: 
+                continue
+                
+            src_planet = world.planet_by_id[ally['src_id']]
+            # Farm production while waiting!
+            projected_ships = ally['budget'] + (src_planet.production * delay)
+            
+            # Apply a 15% safety tax to projected ships in case of unexpected attacks
+            safe_projected = int(projected_ships * 0.85) 
+            total_projected_force += safe_projected
+            participating_allies.append(ally)
+            
+        need = world.min_ships_to_own_at(
+            target.id, 
+            anchor_turn, 
+            world.player, 
+            planned_commitments=planned_commitments, 
+            upper_bound=total_projected_force
+        )
+        
+        if need > 0 and total_projected_force >= need:
+            # ONLY launch the fleets that have reached their departure window (Delay <= 1)
+            ready_to_launch = [a for a in participating_allies if (anchor_turn - a['eta']) <= 1]
+            
+            for launcher in ready_to_launch:
+                send_cap = min(launcher['budget'], need)
+                value = target_value(target, anchor_turn, "swarm", world, modes, policy)
+                
+                if value <= 0: 
+                    continue
+                    
+                score = apply_score_modifiers(
+                    value / (send_cap + anchor_turn * ATTACK_COST_TURN_WEIGHT + 1.0), 
+                    target, 
+                    "swarm", 
+                    world
+                )
+                
+                option = ShotOption(
+                    score=score, 
+                    src_id=launcher['src_id'], 
+                    target_id=target.id, 
+                    angle=launcher['angle'], 
+                    turns=launcher['eta'], 
+                    needed=need, 
+                    send_cap=send_cap, 
+                    mission="tot_swarm", 
+                    anchor_turn=anchor_turn
+                )
+                missions.append(Mission(
+                    kind="tot_swarm", 
+                    score=score, 
+                    target_id=target.id, 
+                    turns=anchor_turn, 
+                    options=[option]
+                ))
+
+    return missions
+
 
 def plan_moves(world, deadline=None):
     def expired():
@@ -2589,6 +2694,7 @@ def plan_moves(world, deadline=None):
         )
     missions.extend(build_rescue_missions(world, policy, planned_commitments, modes))
     missions.extend(build_recapture_missions(world, policy, planned_commitments, modes))
+    missions.extend(build_tot_swarm_missions(world, policy, planned_commitments, modes))
 
     # Only build candidates after solving an intercept so timing decisions come
     # from a real route.
@@ -2767,6 +2873,8 @@ def plan_moves(world, deadline=None):
                     continue
 
                 joint_turn = max(first.turns, second.turns)
+                if not world.is_four_player and joint_turn > 25:
+                    continue
                 total_cap = first.send_cap + second.send_cap
                 need = world.min_ships_to_own_at(
                     target_id,
@@ -2824,6 +2932,8 @@ def plan_moves(world, deadline=None):
                             continue
 
                         joint_turn = max(turns)
+                        if not world.is_four_player and joint_turn > 25:
+                            continue
                         total_cap = sum(option.send_cap for option in trio)
                         need = world.min_ships_to_own_at(
                             target_id,
@@ -2861,6 +2971,72 @@ def plan_moves(world, deadline=None):
                                 options=trio,
                             )
                         )
+        # --- 4-SOURCE SWARM (THE BUNKER BUSTER) ---
+        if (
+            FOUR_SOURCE_SWARM_ENABLED
+            and allow_heavy_phase()
+            and target.owner not in (-1, world.player)
+            and int(target.ships) >= FOUR_SOURCE_MIN_TARGET_SHIPS
+            and len(top_options) >= 4
+        ):
+            for i in range(len(top_options)):
+                for j in range(i + 1, len(top_options)):
+                    for k in range(j + 1, len(top_options)):
+                        for l in range(k + 1, len(top_options)):
+                            if expired():
+                                return finalize_moves()
+                            quad = [top_options[i], top_options[j], top_options[k], top_options[l]]
+                            if len({option.src_id for option in quad}) < 4:
+                                continue
+                            quad_tol = swarm_eta_tolerance(tuple(quad), target, world)
+                            turns = [option.turns for option in quad]
+                            if max(turns) - min(turns) > quad_tol:
+                                continue
+
+                            joint_turn = max(turns)
+                            if not world.is_four_player and joint_turn > 25:
+                                continue
+                            total_cap = sum(option.send_cap for option in quad)
+                            need = world.min_ships_to_own_at(
+                                target_id,
+                                joint_turn,
+                                world.player,
+                                planned_commitments=planned_commitments,
+                                upper_bound=total_cap,
+                            )
+                            if need <= 0 or total_cap < need:
+                                continue
+                            
+                            # Redundancy check: Ensure we actually NEED 4 sources.
+                            # If any 3 of these sources can do it alone, skip the quad-swarm.
+                            if any(
+                                quad[a].send_cap + quad[b].send_cap + quad[c].send_cap >= need
+                                for a in range(4)
+                                for b in range(a + 1, 4)
+                                for c in range(b + 1, 4)
+                            ):
+                                continue
+
+                            value = target_value(target, joint_turn, "swarm", world, modes, policy)
+                            if value <= 0:
+                                continue
+
+                            quad_score = apply_score_modifiers(
+                                value / (need + joint_turn * ATTACK_COST_TURN_WEIGHT + 1.0),
+                                target,
+                                "swarm",
+                                world,
+                            )
+                            quad_score *= FOUR_SOURCE_PLAN_PENALTY
+                            missions.append(
+                                Mission(
+                                    kind="swarm",
+                                    score=quad_score,
+                                    target_id=target_id,
+                                    turns=joint_turn,
+                                    options=quad,
+                                )
+                            )
 
     if allow_heavy_phase():
         missions.extend(build_crash_exploit_missions(world, policy, planned_commitments, modes))
