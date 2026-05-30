@@ -139,8 +139,8 @@ RECAPTURE_IMMEDIATE_WEIGHT = 0.4
 REAR_SOURCE_MIN_SHIPS = 16
 REAR_DISTANCE_RATIO = 1.25
 REAR_STAGE_PROGRESS = 0.78
-REAR_SEND_RATIO_TWO_PLAYER = 0.35
-REAR_SEND_RATIO_FOUR_PLAYER = 0.45
+REAR_SEND_RATIO_TWO_PLAYER = 0.6
+REAR_SEND_RATIO_FOUR_PLAYER = 0.32
 REAR_SEND_MIN_SHIPS = 10
 REAR_MAX_TRAVEL_TURNS = 40
 
@@ -164,7 +164,7 @@ FOUR_SOURCE_MIN_TARGET_SHIPS = 40
 FOUR_SOURCE_PLAN_PENALTY = 0.91
 
 PROACTIVE_DEFENSE_HORIZON = 12
-PROACTIVE_DEFENSE_RATIO = 0.35
+PROACTIVE_DEFENSE_RATIO = 0.4
 MULTI_ENEMY_PROACTIVE_HORIZON = 14
 MULTI_ENEMY_PROACTIVE_RATIO = 0.22
 MULTI_ENEMY_STACK_WINDOW = 3
@@ -1545,9 +1545,11 @@ def build_policy_state(world, deadline=None):
             enemy_eta = enemy_aim[1]
             if enemy_eta > PROACTIVE_DEFENSE_HORIZON:
                 continue
+            # Paranoiac defense in FFA, lighter defense in 1v1
+            current_def_ratio = PROACTIVE_DEFENSE_RATIO if world.is_four_player else PROACTIVE_DEFENSE_RATIO/2
             proactive_keep = max(
                 proactive_keep,
-                int(enemy.ships * PROACTIVE_DEFENSE_RATIO),
+                int(enemy.ships * current_def_ratio),
             )
         proactive_keep = max(proactive_keep, stacked_enemy_proactive_keep(planet, world))
 
@@ -2540,20 +2542,34 @@ def plan_moves(world, deadline=None):
     def compute_live_doomed():
         doomed = set()
         for planet in world.my_planets:
+            # 1. Existing Logic: Check if the planet falls to an enemy attack
             status = world.hold_status(
                 planet.id,
                 planned_commitments=planned_commitments,
                 horizon=DOOMED_EVAC_TURN_LIMIT,
             )
-            if (
+            
+            is_dying_to_enemy = (
                 not status["holds_full"]
                 and status["fall_turn"] is not None
                 and status["fall_turn"] <= DOOMED_EVAC_TURN_LIMIT
                 and source_inventory_left(planet.id) >= DOOMED_MIN_SHIPS
-            ):
+            )
+            
+            # 2. NEW Logic: Check if it's a comet flying off the board
+            is_expiring_comet = False
+            if planet.id in world.comet_ids:
+                life_left = world.comet_life(planet.id)
+                # If the comet dies within our evac window, abandon ship!
+                # We don't use DOOMED_MIN_SHIPS here because every single ship on a dead comet is wasted.
+                if life_left <= DOOMED_EVAC_TURN_LIMIT and source_inventory_left(planet.id) > 0:
+                    is_expiring_comet = True
+            
+            # If either doom condition is met, flag the planet for evacuation
+            if is_dying_to_enemy or is_expiring_comet:
                 doomed.add(planet.id)
         return doomed
-
+    
     def time_filters_pass(target, turns, needed, src_cap):
         if not candidate_time_valid(target, turns, world, VERY_LATE_CAPTURE_BUFFER if world.is_very_late else LATE_CAPTURE_BUFFER):
             return False
@@ -3023,11 +3039,15 @@ def plan_moves(world, deadline=None):
 
     # Use leftover attack budget for one more pass after the first commitment
     # wave is fixed.
+# Use leftover attack budget for one more pass after the first commitment
+    # wave is fixed.
     if not world.is_very_late and allow_optional_phase():
         for src in world.my_planets:
             if expired():
                 return finalize_moves()
+            
             src_left = source_attack_left(src.id)
+            # 1. HARD FLOOR: Never trickle. If you don't have enough ships, stay home.
             if src_left < FOLLOWUP_MIN_SHIPS:
                 continue
 
@@ -3051,6 +3071,12 @@ def plan_moves(world, deadline=None):
                 rough_ships, rough_aim = seeded
 
                 est_turns = rough_aim[1]
+                
+                # 2. THE DISTANCE LEASH: In 1v1, forbid the optional phase from 
+                # launching cross-map suicide missions. Keep it strictly local (max 25 turns).
+                if not world.is_four_player and est_turns > 25:
+                    continue
+                    
                 if world.is_late and est_turns > world.remaining_steps - LATE_CAPTURE_BUFFER:
                     continue
 
@@ -3085,6 +3111,11 @@ def plan_moves(world, deadline=None):
                     continue
 
                 _, turns, _, need, final_send = plan
+                
+                # Redundant check after exact planning
+                if not world.is_four_player and turns > 25:
+                    continue
+                    
                 if world.is_late and turns > world.remaining_steps - LATE_CAPTURE_BUFFER:
                     continue
                 if final_send < need:
