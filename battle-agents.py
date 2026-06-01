@@ -3,8 +3,8 @@ import time
 from kaggle_environments import make
 
 # Define our competitors
-agent_a = "./agents/c-optimized-sniper.py"
-agent_b = "./agents/d-eclipse-predator.py"
+agent_a = "./agents/e-tankman.py"
+agent_b = "./Testing-agents/apex-predator.py"
 
 # Generate 5 random seeds for the tournament
 seeds = [random.randint(1, 999999) for _ in range(5)]
