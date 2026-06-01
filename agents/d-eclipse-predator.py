@@ -1346,11 +1346,6 @@ def build_policy_state(world, deadline=None):
                 if nearest_my_dist < 14400: 
                     hammer_mode = True
                     break
-
-    rusher_mode = False
-    if not hammer_mode and world.enemy_is_high_volume:
-        rusher_mode = True
-    
     high_def_ratio = 0.90 if hammer_mode else DYNAMIC_DEFENSE_HIGH_RATIO
     threat_ships = 100 if hammer_mode else DYNAMIC_DEFENSE_THREAT_SHIPS
 
@@ -1358,7 +1353,7 @@ def build_policy_state(world, deadline=None):
         if expired(): break
         exact_keep = world.keep_needed_map.get(planet.id, 0)
 
-        min_enemy_time = 1
+        min_enemy_time = 1e9
         nearest_enemy_ships = 0
         for enemy in world.enemy_planets:
             t = travel_time(enemy.x, enemy.y, enemy.radius, planet.x, planet.y, planet.radius, 1)
@@ -1371,8 +1366,7 @@ def build_policy_state(world, deadline=None):
         elif min_enemy_time > DYNAMIC_DEFENSE_SAFE_TURNS:
             def_ratio = DYNAMIC_DEFENSE_LOW_RATIO
         else:
-            # If fighting a high-volume attacker, drop defense to 0.15 to match their tempo.
-            def_ratio = 0.15 if rusher_mode else PROACTIVE_DEFENSE_RATIO
+            def_ratio = PROACTIVE_DEFENSE_RATIO
 
         sun_trap_reduction = 1.0
         if world.enemy_planets:
