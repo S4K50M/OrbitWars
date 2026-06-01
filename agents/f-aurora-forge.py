@@ -179,7 +179,7 @@ REINFORCE_ENABLED = True
 REINFORCE_MIN_PRODUCTION = 2
 REINFORCE_MAX_TRAVEL_TURNS = 22
 REINFORCE_SAFETY_MARGIN = 2
-REINFORCE_MAX_SOURCE_FRACTION = 0.75
+REINFORCE_MAX_SOURCE_FRACTION = 0.40
 REINFORCE_MIN_FUTURE_TURNS = 40
 REINFORCE_HOLD_LOOKAHEAD = 20
 REINFORCE_COST_TURN_WEIGHT = 0.35
@@ -202,12 +202,10 @@ REAR_MAX_TRAVEL_TURNS = 40
 PARTIAL_SOURCE_MIN_SHIPS = 6
 MULTI_SOURCE_TOP_K = 10
 MULTI_SOURCE_ETA_TOLERANCE = 2
-MULTI_SOURCE_PLAN_PENALTY = 0.97
 HOSTILE_SWARM_ETA_TOLERANCE = 1
 THREE_SOURCE_SWARM_ENABLED = True
 THREE_SOURCE_MIN_TARGET_SHIPS = 20
 THREE_SOURCE_ETA_TOLERANCE = 2
-THREE_SOURCE_PLAN_PENALTY = 0.94
 
 WAIT_STRIKE_ENABLED = True
 WAIT_STRIKE_DELAYS = (0, 2, 4, 6)
@@ -216,7 +214,11 @@ WAIT_STRIKE_MAX_TARGETS = 6
 FOUR_SOURCE_SWARM_ENABLED = True
 FOUR_SOURCE_ETA_TOLERANCE = 2
 FOUR_SOURCE_MIN_TARGET_SHIPS = 40
-FOUR_SOURCE_PLAN_PENALTY = 0.91
+
+
+MULTI_SOURCE_PLAN_PENALTY = 1.15   # Was 0.97 (Now a 15% Bonus for pairs)
+THREE_SOURCE_PLAN_PENALTY = 1.25   # Was 0.94 (Now a 25% Bonus for trios)
+FOUR_SOURCE_PLAN_PENALTY = 1.35    # Was 0.91 (Now a 35% Bonus for quads)
 
 PROACTIVE_DEFENSE_HORIZON = 12
 PROACTIVE_DEFENSE_RATIO = 0.4
@@ -774,12 +776,13 @@ class WorldModel:
         self.num_players = count_players(planets, fleets)
         self.remaining_steps = max(1, TOTAL_STEPS - step)
         self.is_early = step < EARLY_TURN_LIMIT
-        self.is_opening = step < OPENING_TURN_LIMIT
+        
         self.is_late = self.remaining_steps < LATE_REMAINING_TURNS
         self.is_very_late = self.remaining_steps < VERY_LATE_REMAINING_TURNS
         self.is_total_war = TOTAL_WAR_ENABLED and self.remaining_steps < TOTAL_WAR_REMAINING_TURNS
         self.is_four_player = self.num_players >= 4
-
+        opening_limit = OPENING_TURN_LIMIT if self.is_four_player else 80
+        self.is_opening = step < opening_limit
         self.owner_strength = defaultdict(int)
         self.owner_production = defaultdict(int)
         for planet in planets:
@@ -925,9 +928,12 @@ class WorldModel:
             # Force-spawn the Anvil IMMEDIATELY to survive the lobby dogpile.
             is_raid_boss = self.is_four_player and (my_prod >= 0.26 * total_prod)
             
-            if total_prod > 0 and my_prod >= target_mass * total_prod:
-                if viable_neutrals <= 3 or is_raid_boss:
-                    vote += 1
+            if total_prod > 0 and my_prod >= target_mass * total_prod and viable_neutrals <= 3:
+                vote += 1
+                
+            # FORCE IMMEDIATE TRANSITION
+            if is_raid_boss:
+                vote += 2
 
             # 3. Gridlock
             if self.step > GRIDLOCK_TURN:
@@ -1427,7 +1433,8 @@ def build_policy_state(world, deadline=None):
         elif min_enemy_time > DYNAMIC_DEFENSE_SAFE_TURNS:
             def_ratio = DYNAMIC_DEFENSE_LOW_RATIO
         else:
-            def_ratio = 0.15 if rusher_mode else PROACTIVE_DEFENSE_RATIO
+            base_ratio = PROACTIVE_DEFENSE_RATIO if world.is_four_player else 0.20
+            def_ratio = 0.15 if rusher_mode else base_ratio
 
         sun_trap_reduction = 1.0
         if world.enemy_planets:
@@ -1598,16 +1605,15 @@ def preferred_send(target, base_needed, arrival_turns, src_available, world, mod
     if modes["is_finishing"] and target.owner not in (-1, world.player):
         margin += FINISHING_HOSTILE_SEND_BONUS
         
-    # 🚀 KINETIC VELOCITY EXPLOIT 🚀
-    # If the target is far, or enemies can react quickly, a 12-ship fleet is a sitting duck.
-    # We dynamically floor the ship count to ensure high travel speed, out-pacing enemy rescues.
+    # 🚀 PRECISION OVERRIDE: 
+    # Return to Snipe No BOM's exact math. We only use the Kinetic sledgehammer 
+    # during the opening land grab, or if it's a massive, highly contested target.
     _, enemy_t = policy_reaction_times(target.id, policy)
     
     if arrival_turns > 15 or enemy_t < 25:
-        # Force a minimum of 40-50 ships to abuse the logarithmic speed curve
-        kinetic_floor = 50 if world.is_four_player else 35
-        # Only apply the kinetic floor if the planet is actually worth the investment
-        if target.production >= 2 or world.is_opening:
+        # Only force the high-speed floor if it's early game, or a very valuable planet (>4 prod)
+        if world.is_opening or target.production >= 4:
+            kinetic_floor = 50 if world.is_four_player else 35
             send = max(send, kinetic_floor)
 
     return min(src_available, send + margin)
@@ -1640,6 +1646,8 @@ def apply_score_modifiers(base_score, target, mission, world):
         if target.owner in world.blood_in_water_owners: score *= BLOOD_IN_WATER_SCORE_MULT
         if target.owner == world.weakest_enemy and target.owner not in (-1, world.player):
             score *= WEAKEST_ENEMY_SCORE_MULT
+            if target.owner == world.leader_enemy and target.owner not in (-1, world.player):
+                score *= 0.80
     return score
 # ============================================================
 # Strategy – Plan Settlers (with Fleet Velocity Exploitation)
@@ -1991,9 +1999,9 @@ def build_tot_swarm_missions(world, policy, planned_commitments, modes):
                 if abs(eta - anchor_turn) > 1: continue
                 value = target_value(target, anchor_turn, "swarm", world, modes, policy)
                 if value <= 0: continue
-                score = apply_score_modifiers(
-                    value / (send_cap + anchor_turn * ATTACK_COST_TURN_WEIGHT + 1.0),
-                    target, "swarm", world)
+                
+                base_score = value / (send_cap + anchor_turn * ATTACK_COST_TURN_WEIGHT + 1.0)
+                score = apply_score_modifiers(base_score, target, "tot_swarm", world) * 1.50
                 option = ShotOption(score=score, src_id=launcher['src_id'], target_id=target.id,
                                     angle=angle, turns=eta, needed=need, send_cap=send_cap,
                                     mission="tot_swarm", anchor_turn=anchor_turn)
@@ -2007,6 +2015,7 @@ def build_tot_swarm_missions(world, policy, planned_commitments, modes):
 # ============================================================
 
 def plan_moves(world, deadline=None):
+    dynamic_cost_weight = 0.85 if world.is_four_player else 0.55
     def expired():
         return deadline is not None and time.perf_counter() > deadline
 
@@ -2145,6 +2154,8 @@ def plan_moves(world, deadline=None):
                                                      upper_bound=mace_budget)
                     if need <= 0 or need > mace_budget: continue
                     weakness_bonus = 2.0 if target.owner in world.blood_in_water_owners else 1.0
+                    if world.is_four_player and target.owner == world.leader_enemy:
+                        weakness_bonus = 0.7
                     score = (target.production * weakness_bonus) / (turns + 1.0)
                     if score > best_score:
                         best_score = score
@@ -2255,7 +2266,7 @@ def plan_moves(world, deadline=None):
                         partial_value = target_value(target, p_turns, "swarm", world, modes, policy)
                         if partial_value > 0:
                             partial_score = apply_score_modifiers(
-                                partial_value / (partial_send_cap + p_turns * ATTACK_COST_TURN_WEIGHT + 1.0),
+                                partial_value / (partial_send_cap + p_turns * dynamic_cost_weight + 1.0),
                                 target, "swarm", world)
                             source_options_by_target[target.id].append(
                                 ShotOption(score=partial_score, src_id=src.id, target_id=target.id,
@@ -2281,7 +2292,7 @@ def plan_moves(world, deadline=None):
                     if not is_economically_viable(value, send_cap, turns, world): continue
 
                 score = apply_score_modifiers(
-                    value / (send_cap + turns * ATTACK_COST_TURN_WEIGHT + 1.0),
+                    value / (send_cap + turns * dynamic_cost_weight + 1.0),
                     target, "capture", world)
 
                 if is_trap(src, target, send_cap, world): score *= TRAP_PENALTY
@@ -2318,7 +2329,7 @@ def plan_moves(world, deadline=None):
                 if target_id not in world.exposed_planet_ids:
                     if not is_economically_viable(value, need, joint_turn, world): continue
                 pair_score = apply_score_modifiers(
-                    value / (need + joint_turn * ATTACK_COST_TURN_WEIGHT + 1.0),
+                    value / (need + joint_turn * dynamic_cost_weight + 1.0),
                     target, "swarm", world) * MULTI_SOURCE_PLAN_PENALTY
                 missions.append(Mission(kind="swarm", score=pair_score, target_id=target_id,
                                         turns=joint_turn, options=[first, second]))
@@ -2348,7 +2359,7 @@ def plan_moves(world, deadline=None):
                         if target_id not in world.exposed_planet_ids:
                             if not is_economically_viable(value, need, joint_turn, world): continue
                         trio_score = apply_score_modifiers(
-                            value / (need + joint_turn * ATTACK_COST_TURN_WEIGHT + 1.0),
+                            value / (need + joint_turn * dynamic_cost_weight + 1.0),
                             target, "swarm", world) * THREE_SOURCE_PLAN_PENALTY
                         missions.append(Mission(kind="swarm", score=trio_score, target_id=target_id,
                                                 turns=joint_turn, options=trio))
@@ -2379,7 +2390,7 @@ def plan_moves(world, deadline=None):
                             if target_id not in world.exposed_planet_ids:
                                 if not is_economically_viable(value, need, joint_turn, world): continue
                             quad_score = apply_score_modifiers(
-                                value / (need + joint_turn * ATTACK_COST_TURN_WEIGHT + 1.0),
+                                value / (need + joint_turn * dynamic_cost_weight + 1.0),
                                 target, "swarm", world) * FOUR_SOURCE_PLAN_PENALTY
                             missions.append(Mission(kind="swarm", score=quad_score, target_id=target_id,
                                                     turns=joint_turn, options=quad))
@@ -2553,7 +2564,7 @@ def plan_moves(world, deadline=None):
                 if target.id not in world.exposed_planet_ids:
                     if not is_economically_viable(value, final_send, turns, world): continue
                 score = apply_score_modifiers(
-                    value / (final_send + turns * ATTACK_COST_TURN_WEIGHT + 1.0),
+                    value / (final_send + turns * dynamic_cost_weight + 1.0),
                     target, "capture", world)
                 if best is None or score > best[0]:
                     best = (score, target, plan)

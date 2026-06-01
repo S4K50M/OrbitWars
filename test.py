@@ -61,8 +61,6 @@ print(f"🚀 STARTING AURORA FORGE GAUNTLET ({len(matches)} MATCHES) 🚀")
 print("=" * 70 + "\n")
 
 for match in matches:
-    # if match["id"] != 1 and match["id"] != 6: continue
-    if match['id'] >10: continue
     print(f"Running Match {match['id']} | {match['type']} | Seed: {match['seed']}...")
     
     agent_paths = [a["path"] for a in match["agents"]]
