@@ -1,7 +1,7 @@
 # Orbit Wars Agent Development Tracker
 
 ## Overview
-This document tracks the evolution, architectural shifts, and heuristic tuning of the `c-optimized-sniper` agent for the Kaggle Orbit Wars simulation competition. 
+This document tracks the evolution, architectural shifts, and heuristic tuning of the Orbit Wars simulation agents—from the foundational `b-Snipe` to the Kaggle-ready `d-eclipse-predator`. 
 
 ---
 
@@ -30,12 +30,32 @@ This document tracks the evolution, architectural shifts, and heuristic tuning o
 * **The Exploit:** Because Orbit Wars scales fleet speed logarithmically, a 1-ship fleet moves at the absolute minimum speed (1.0 unit/turn). 
 * **The Impact:** These tiny fleets take ~60 turns to arrive. For those 60 turns, the unoptimized enemy bots register an "inbound threat" and waste their CPU cycles running deep 60-turn combat simulations. This effectively acts as a Denial of Service (DoS) attack on the enemy AI, causing them to time out and freeze while the optimized main army sweeps the board.
 
-## Phase 5: Advanced Macro & Total War (Current State)
+## Phase 5: Advanced Macro & Total War
 * **Comet Evacuation:** Hijacked the existing `live_doomed` retreat protocol. The bot now automatically detects when a comet is about to fly off the board and seamlessly evacuates all stationed ships to the nearest safe allied planet, preserving massive amounts of macro economy.
 * **Total War:** Enabled `TOTAL_WAR` mode. At Turn 460, the bot abandons all defense and forcefully empties every planet at the enemy to maximize the exact ship-count win condition at Turn 500.
-* **Hostile Reinforcements:** Enabled `HOSTILE_REINFORCE_ENABLED`. The bot now runs sub-simulations to predict if an enemy will send backup to a targeted planet, automatically packing extra ships to crush the anticipated defense.
+* **Hostile Reinforcements:** Enabled `HOSTILE_REINFORCE_ENABLED`. The bot runs sub-simulations to predict if an enemy will send backup to a targeted planet, automatically packing extra ships to crush the anticipated defense.
 
----
-**Next Implementation Targets:**
-1. `FOUR_SOURCE_SWARM_ENABLED`: Activating 4-planet coordinated strikes for late-game siege breaking.
-2. `WAIT_STRIKES`: Coding the intentional launch-delay logic to bypass enemy defense margins with synchronized multi-fleet impacts.
+## Phase 6: The Grand Finals & The "Chaos" Meta
+* **State:** Hosted a massive combinatorial FFA tournament to lock in the absolute best ladder candidate, pitting `c-optimized-sniper`, `apex-predator`, and legacy snipers against each other.
+* **The Result:** The uncoordinated, ledger-less `b-Snipe+No-BOM` hijacked the finals by acting as a chaotic spoiler, spamming erratic attacks that broke the deep predictive math of the optimized bots.
+* **The Pivot:** Acknowledged that while chaos wins closed lobbies of highly optimized snipers, it fails on the open Kaggle ladder. Selected `apex-predator.py` (the 60.5% win-rate group-stage dominator) as the strongest algorithmic foundation to upgrade for the global queue.
+
+## Phase 7: Top-20 Leaderboard EDA & D-Eclipse Birth
+* **State:** Uploaded `apex-predator` but hit a hard 800 Elo ceiling. Shifted to data-driven engineering using the Kaggle Top-20 Parquet dataset (3.5M+ actions).
+* **The Investigation:** Extracted three massive meta revelations:
+  1.  **The Tick-60 Crux:** 1v1s aren't decided in the opening; they are decided by massive border collisions exactly between Ticks 50 and 80.
+  2.  **Winner Archetypes:** Top 1200+ Elo players do not launch medium fleets. They either use relentless micro-spam (<12 ships) to bloat enemy ledgers, or massive "Hammer" doom-stacks (>1000 ships) to one-shot bases.
+  3.  **Comet Harvesting:** Confirmed dynamic comets dictate mid-game economy surges and require hyper-specific intercept logic.
+* **The Upgrade (`d-eclipse-predator`):** * Implemented a **Noise Filter** in the timeline ledger to completely ignore enemy micro-spam, saving critical compute.
+  * Added dynamic `INTERCEPT_TOLERANCE` (0.1) and Comet Life Guards to eradicate "Ghost Intercepts" where fleets missed fast-moving targets.
+  * Shifted objective functions to "Endgame Point-Padding" when `<60` turns remain to win timeout stalemates.
+
+## Phase 8: Curing Infinite Threat Paranoia
+* **State:** Local benchmarking of `d-eclipse-predator` revealed it was bleeding out against older snipers.
+* **The Bug:** Visual diagnostics revealed two fatal errors:
+  1.  **Infinite Threat Scaling:** If *any* enemy built a 100-ship stack, the agent globally panicked, locked 90% of its ships at home, and its attack budget flatlined to zero forever.
+  2.  **Trap Penalty Suicide:** Rejecting local targets (due to heavy trap penalties) forced the bot to bypass staging routes and trickle 10-ship fleets 60 turns across the void into heavily defended meat-grinders.
+* **The Fix:**
+  * **Threat Capping:** Hard-capped the assumed threat multiplier (`min(enemy.ships, 150)`) so the frontline attack budget never permanently locks.
+  * **The Exponential Decay Multiplier:** Removed strict hard caps on distance and replaced them with `LONG_TRAVEL_PENALTY_MULT`—an exponential mathematical cliff that forces local engagements while legally allowing cross-map transit only if the local sector is completely dead.
+  * **Traffic Jam Clearance:** Softened `TRAP_PENALTY` (from 0.1 to 0.6) and increased `REAR_SEND_RATIO` (to 0.75) to restore healthy supply lines and localized Time-on-Target (ToT) swarms.

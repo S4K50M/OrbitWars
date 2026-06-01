@@ -4,7 +4,7 @@ from kaggle_environments import make
 
 # Define our competitors
 agent_a = "./agents/c-optimized-sniper.py"
-agent_b = "./agents/b-Snipe+No-BOM.py"
+agent_b = "./agents/d-eclipse-predator.py"
 
 # Generate 5 random seeds for the tournament
 seeds = [random.randint(1, 999999) for _ in range(5)]
