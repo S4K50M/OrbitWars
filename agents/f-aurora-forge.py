@@ -898,9 +898,12 @@ class WorldModel:
                 GLOBAL_MEMORY["anvil_id"] = None
 
 # State 0: Evaluate transition conditions
+        # State 0: Evaluate transition conditions
         if self.fsm_state == 0:
             vote = 0
-
+            if not self.is_four_player and self.step < 120:
+                vote -= 10
+                
             # 1. Geometric Shielding (Unchanged)
             geom_shield = False
             for p in self.my_planets:
@@ -916,24 +919,24 @@ class WorldModel:
             if geom_shield:
                 vote += 1
 
-            # 2. Economic Mass & The Land Grab Override
-            target_mass = 0.20 if self.is_four_player else 0.40 
-            total_prod = sum(p.production for p in self.planets)
-            my_prod = sum(p.production for p in self.my_planets)
+            # 2. Power Balance & Neutral Saturation Check (NEW PATCH)
+            alive_players = [p for p in self.owner_strength if self.owner_strength[p] > 0]
+            total_alive_strength = sum(self.owner_strength[p] for p in alive_players)
+            avg_power = total_alive_strength / max(1, len(alive_players))
             
-            # Count remaining valuable neutrals
+            # Are we at least 90% as strong as the average player?
+            is_power_balanced = self.my_total >= (avg_power * 0.9)
+            
+            # Are we running out of expansion space?
             viable_neutrals = sum(1 for n in self.neutral_planets if n.production >= 2)
             
             # EMERGENCY OVERRIDE: If we hold 26%+ of map production, we are the raid boss.
-            # Force-spawn the Anvil IMMEDIATELY to survive the lobby dogpile.
-            is_raid_boss = self.is_four_player and (my_prod >= 0.26 * total_prod)
+            is_raid_boss = self.is_four_player and (self.my_prod >= 0.26 * self.total_production)
             
-            if total_prod > 0 and my_prod >= target_mass * total_prod and viable_neutrals <= 3:
-                vote += 1
-                
-            # FORCE IMMEDIATE TRANSITION
-            if is_raid_boss:
-                vote += 2
+            # FORCE SPAWN CONDITIONS:
+            # If we have parity AND neutrals are scarce, OR we are the dominant "Raid Boss"
+            if (is_power_balanced and viable_neutrals <= 5) or is_raid_boss:
+                vote += 2 
 
             # 3. Gridlock
             if self.step > GRIDLOCK_TURN:
@@ -1299,10 +1302,10 @@ def detect_enemy_crashes(world):
 def is_economically_viable(value, send_cap, turns, world):
     cost_weight = MACRO_SHIP_COST_WEIGHT
     
-    # Recalibrated Override: 0.85 keeps us highly aggressive locally
-    # but stops us from wasting fleets on meaningless cross-map skirmishes.
+    # Recalibrated Override: 0.85 keeps us careful in FFA,
+    # but 0.60 unleashes hyper-aggression in early 1v1s.
     if world.is_opening:
-        cost_weight = 0.85  
+        cost_weight = 0.85 if world.is_four_player else 0.60  
     elif world.remaining_steps < ENDGAME_POINT_PADDING_TURNS:
         domination = (world.my_total - world.enemy_total) / max(1, world.my_total + world.enemy_total)
         if abs(domination) < 0.5: cost_weight = 0.5
@@ -1388,38 +1391,15 @@ def build_policy_state(world, deadline=None):
     high_def_ratio = 0.90 if hammer_mode else DYNAMIC_DEFENSE_HIGH_RATIO
     threat_ships = 100 if hammer_mode else DYNAMIC_DEFENSE_THREAT_SHIPS
 
+    is_dominating_1v1 = (not world.is_four_player and (world.my_prod > world.enemy_prod * 1.3))
+
+#-------------For Planet in World Loop----------------------
+
     for planet in world.my_planets:
         if expired(): break
         exact_keep = world.keep_needed_map.get(planet.id, 0)
 
-# --- Anvil Lock with Hysteresis (FSM‑based, no yo‑yo) ---
-        if world.anvil_planet is not None and planet.id == world.anvil_planet.id:
-            anvil_ships = int(planet.ships)
-            
-            if world.fsm_state == 1:   # Mace Phase
-                # 1v1 Defensive Hardening: Use 80 reserve to stop early rushes
-                # FFA Aggression: Use 40 reserve to maintain Mace strike power
-                hard_reserve = 80 if not world.is_four_player else 40
-                
-                # Magazine Circuit: Must reach MACE_THRESHOLD (120) before unlocking weapon
-                if anvil_ships >= MACE_THRESHOLD:
-                    # Allocate a massive, un-truncatable block for the Mace attack
-                    reserve[planet.id] = hard_reserve
-                    attack_budget[planet.id] = min(anvil_ships - hard_reserve, MACE_SURPLUS_CAP)
-                else:
-                    # RELOADING: Hard-lock all ships. Standard missions cannot touch this pool.
-                    reserve[planet.id] = anvil_ships
-                    attack_budget[planet.id] = 0
-            
-            elif world.fsm_state == 2: # Hammer Phase
-                # DOOMSDAY STRIKE: Minimal reserve, unleash full remaining stack
-                reserve[planet.id] = 10
-                attack_budget[planet.id] = max(0, anvil_ships - 10)
-            
-            else:  # fsm_state 0 (safe fallback)
-                reserve[planet.id] = anvil_ships
-                attack_budget[planet.id] = 0
-            continue   # Skip standard proactive_keep logic for the Anvil
+        # --- 1. Universal Threat Assessment (No Skips) ---
         min_enemy_time = 1e9
         nearest_enemy_ships = 0
         for enemy in world.enemy_planets:
@@ -1453,6 +1433,41 @@ def build_policy_state(world, deadline=None):
             proactive_keep = max(proactive_keep, int(assumed_threat * def_ratio))
         proactive_keep = max(proactive_keep, stacked_enemy_proactive_keep(planet, world))
 
+# 2. Logic Branch: Anvil vs. Standard Planet
+        if world.anvil_planet is not None and planet.id == world.anvil_planet.id:
+            anvil_ships = int(planet.ships)
+            survival_baseline = max(exact_keep, int(proactive_keep * sun_trap_reduction))
+            
+            # --- COMBINED PREDATOR OVERRIDE ---
+            if is_dominating_1v1 and world.fsm_state >= 1:
+                reserve[planet.id] = min(anvil_ships, 20)
+                attack_budget[planet.id] = max(0, anvil_ships - 20)
+            
+            # THREAT HANDLING
+            elif proactive_keep > 0:
+                reserve[planet.id] = min(anvil_ships, survival_baseline + 20)
+                attack_budget[planet.id] = max(0, anvil_ships - reserve[planet.id])
+            
+            # FSM ESCALATION
+            else:
+                if world.fsm_state == 1:   # Mace
+                    hard_reserve = max(exact_keep, 80 if not world.is_four_player else 50)
+                    if anvil_ships >= MACE_THRESHOLD:
+                        reserve[planet.id] = hard_reserve
+                        attack_budget[planet.id] = min(anvil_ships - hard_reserve, MACE_SURPLUS_CAP)
+                    else:
+                        reserve[planet.id] = anvil_ships
+                        attack_budget[planet.id] = 0
+                elif world.fsm_state == 2: # Hammer
+                    hammer_reserve = max(exact_keep, 40)
+                    reserve[planet.id] = hammer_reserve
+                    attack_budget[planet.id] = max(0, anvil_ships - reserve[planet.id])
+                else: 
+                    reserve[planet.id] = anvil_ships
+                    attack_budget[planet.id] = 0
+            continue # Correct: Logic handled, move to next planet
+
+        # 3. Standard Non-Anvil Assignment (Only runs if NOT an Anvil)
         if world.is_total_war:
             exact_keep = min(exact_keep, max(1, exact_keep // 2))
             proactive_keep = min(proactive_keep, max(1, proactive_keep // 2))
@@ -1460,7 +1475,6 @@ def build_policy_state(world, deadline=None):
         reserve_keep = min(int(planet.ships), max(exact_keep, proactive_keep) * sun_trap_reduction)
         reserve[planet.id] = min(int(planet.ships), int(reserve_keep))
         attack_budget[planet.id] = max(0, int(planet.ships) - reserve[planet.id])
-
     return {
         "indirect_wealth_map": indirect_wealth_map,
         "reserve": reserve,
@@ -1532,6 +1546,24 @@ def target_value(target, arrival_turns, mission, world, modes, policy):
 
     value = target.production * turns_profit
     value += policy["indirect_wealth_map"][target.id] * turns_profit * INDIRECT_VALUE_SCALE
+    threatened_planets = [p for p in world.my_planets if world.first_enemy_map.get(p.id) is not None]
+    if threatened_planets:
+        # Dampen offensive value based on how many planets are threatened, but never below 0.6x
+        siege_penalty = max(0.6, 1.0 - (len(threatened_planets) * 0.15))
+        if target.owner not in (-1, world.player):
+            value *= siege_penalty
+
+    # =========================================================================
+    # 🚨 PATCH 1: Early Game FFA Pacifism
+    # Stop the bot from bleeding ships in early 4-player skirmishes.
+    # Prioritize uncontested land grabs for the first 120 ticks.
+    # =========================================================================
+    if world.is_four_player and world.step < 120:
+        if target.owner not in (-1, world.player):
+            value *= 0.5  # Severe penalty: Do not attack players early!
+        elif target.owner == -1 and is_contested_neutral(target, policy):
+            value *= 0.7  # Avoid bidding wars over contested neutrals early on
+    # =========================================================================
 
     if world.is_static(target.id):
         value *= STATIC_NEUTRAL_VALUE_MULT if target.owner == -1 else STATIC_HOSTILE_VALUE_MULT
@@ -1548,7 +1580,10 @@ def target_value(target, arrival_turns, mission, world, modes, policy):
 
     if target.id in world.comet_ids: value *= COMET_VALUE_MULT
 
-    if mission == "snipe": value *= SNIPE_VALUE_MULT
+    if mission == "snipe": 
+        value *= SNIPE_VALUE_MULT
+        if not world.is_four_player:
+            value *= 1.2
     elif mission == "swarm": value *= SWARM_VALUE_MULT
     elif mission == "reinforce": value *= REINFORCE_VALUE_MULT
     elif mission == "crash_exploit": value *= CRASH_EXPLOIT_VALUE_MULT
@@ -1559,6 +1594,13 @@ def target_value(target, arrival_turns, mission, world, modes, policy):
         if target.id in world.exposed_planet_ids: value *= EXPOSED_PLANET_VALUE_MULT
         if target.owner == world.weakest_enemy and target.owner not in (-1, world.player):
             value *= WEAKEST_ENEMY_VALUE_MULT
+        if target.owner == world.leader_enemy and target.owner not in (-1, world.player):
+            # If we are significantly weaker than the leader, avoid the "King"
+            if world.my_total < world.leader_enemy_strength * 0.70:
+                value *= 0.50  
+            # If we are the primary challenger, focus fire!
+            elif world.my_total > world.leader_enemy_strength * 0.85:
+                value *= 1.40
         if target.owner == -1 and target.id in world.enemy_fights: value *= LET_THEM_FIGHT_PENALTY
 
     if world.is_late:
@@ -1578,7 +1620,8 @@ def target_value(target, arrival_turns, mission, world, modes, policy):
     if arrival_turns > LONG_TRAVEL_PENALTY_TURNS and target.owner != -1 and not world.is_very_late:
         decay_factor = LONG_TRAVEL_PENALTY_MULT ** ((arrival_turns - LONG_TRAVEL_PENALTY_TURNS) / 10.0)
         value *= max(0.3, decay_factor)
-
+    # Ensure the value doesn't explode due to stacking multipliers
+    value = min(value, 5000.0) 
     return value
 
 def reinforce_value(target, hold_until, world, policy):
@@ -1981,9 +2024,10 @@ def build_tot_swarm_missions(world, policy, planned_commitments, modes):
         for ally in allies_with_eta:
             delay = anchor_turn - ally['eta']
             if delay < 0: continue
+            
             src_planet = world.planet_by_id[ally['src_id']]
-            projected_ships = ally['budget'] + (src_planet.production * delay)
-            safe_projected = int(projected_ships * 0.85)
+            safe_projected = int(ally['budget']) 
+            
             total_projected_force += safe_projected
             participating_allies.append(ally)
         need = world.min_ships_to_own_at(target.id, anchor_turn, world.player,
@@ -2009,9 +2053,12 @@ def build_tot_swarm_missions(world, policy, planned_commitments, modes):
                                         turns=anchor_turn, options=[option]))
     return missions
 
-
 # ============================================================
 # plan_moves – corrected action-phase separation
+# ============================================================
+
+# ============================================================
+# plan_moves – Stable Swarm Architecture
 # ============================================================
 
 def plan_moves(world, deadline=None):
@@ -2101,45 +2148,40 @@ def plan_moves(world, deadline=None):
         anvil = world.anvil_planet
         anvil_ships = source_inventory_left(anvil.id)
         
-        # DYNAMIC THRESHOLD: The Anvil MUST protect its local sub-graph.
-        # We drop the requirement so it actively blocks local snipes.
+        anvil_safe_budget = max(0, anvil_ships - world.keep_needed_map.get(anvil.id, 0))
         omni_threshold = 25 if world.is_four_player else 40
         
         for planet in world.my_planets:
             if planet.id == anvil.id: continue
-            
             fall_turn = world.fall_turn_map.get(planet.id)
             if fall_turn is None or fall_turn > DEFENSE_LOOKAHEAD_TURNS: continue
             
-            if anvil_ships >= omni_threshold:
-                aim = world.plan_shot(anvil.id, planet.id, anvil_ships)
+            if anvil_safe_budget >= omni_threshold:
+                aim = world.plan_shot(anvil.id, planet.id, anvil_safe_budget)
                 if aim is not None:
                     angle, turns, _, _ = aim
                     if turns < fall_turn:
                         need = world.reinforcement_needed_to_hold_until(
                             planet.id, turns, fall_turn, planned_commitments=planned_commitments,
-                            upper_bound=anvil_ships)
+                            upper_bound=anvil_safe_budget)
                         
-                        if need > 0 and need <= anvil_ships:
-                            # CLUSTER BONUS: Over-prioritize rescuing planets directly adjacent to the Anvil
+                        if need > 0 and need <= anvil_safe_budget:
                             cluster_bonus = 2.5 if planet_distance_sq(anvil, planet) < 15000 else 1.0
-                            send = min(anvil_ships, max(need, omni_threshold))
-                            
+                            send = min(anvil_safe_budget, max(need, omni_threshold))                            
                             score = 2000.0 * cluster_bonus
                             option = ShotOption(score=score, src_id=anvil.id, target_id=planet.id,
                                                 angle=angle, turns=turns, needed=need,
                                                 send_cap=send, mission="hammer_rescue")
                             missions.append(Mission(kind="hammer_rescue", score=score, target_id=planet.id,
                                                     turns=turns, options=[option]))
-                            break   # only one rescue per turn
+                            break   
 
-        # --- Phase A: Hammer / Mace strikes (FSM‑controlled) ---
+    # --- Phase A: Hammer / Mace strikes (FSM‑controlled) ---
     if world.anvil_planet is not None and world.fsm_state >= 1:
         anvil = world.anvil_planet
         anvil_budget = source_attack_left(anvil.id)
         anvil_ships_total = source_inventory_left(anvil.id)
 
-        # Only Mace if FSM == 1
         if world.fsm_state == 1 and anvil_budget > 0:
             mace_budget = min(anvil_budget, MACE_SURPLUS_CAP)
             if mace_budget >= 5:
@@ -2168,31 +2210,33 @@ def plan_moves(world, deadline=None):
                     missions.append(Mission(kind="mace", score=1900.0, target_id=target_id,
                                             turns=turns, options=[option]))
 
-        # Only Hammer if FSM == 2
         elif world.fsm_state == 2:
             incoming_enemy = sum(f.ships for f in world.fleets if f.owner not in (-1, world.player))
             threat_ratio = incoming_enemy / max(1, world.my_total)
             if threat_ratio < 0.2 and anvil_budget >= HAMMER_MIN_STACK:
-                leader = None
+                leader_target = None
                 if world.enemy_planets:
-                    leader = max(world.enemy_planets, key=lambda p: p.production)
-                if leader is not None:
-                    hammer_budget = min(anvil_budget, anvil_ships_total - 10)
+                    def hammer_score(p):
+                        return (p.production ** 1.5) / (max(1.0, float(p.ships)) + 50.0)
+                    leader_target = max(world.enemy_planets, key=hammer_score)
+                
+                if leader_target is not None:
+                    hammer_budget = anvil_budget
                     if hammer_budget >= HAMMER_MIN_STACK:
-                        aim = world.plan_shot(anvil.id, leader.id, hammer_budget)
+                        aim = world.plan_shot(anvil.id, leader_target.id, hammer_budget)
                         if aim is not None:
                             angle, turns, _, _ = aim
                             if turns < world.remaining_steps:
-                                option = ShotOption(score=3000.0, src_id=anvil.id, target_id=leader.id,
+                                option = ShotOption(score=3000.0, src_id=anvil.id, target_id=leader_target.id,
                                                     angle=angle, turns=turns, needed=0,
                                                     send_cap=hammer_budget, mission="hammer")
-                                missions.append(Mission(kind="hammer", score=3000.0, target_id=leader.id,
+                                missions.append(Mission(kind="hammer", score=3000.0, target_id=leader_target.id,
                                                         turns=turns, options=[option]))
                                 
-    # --- Phase B: Backline Forging (independent block, runs every interval regardless of anvil budget) ---
+    # --- Phase B: Backline Forging ---
     if world.fsm_state >= 1:
         anvil = world.anvil_planet
-        if world.step % ANVIL_FORGE_INTERVAL == 0:   # removed "and anvil_budget == 0" condition
+        if world.step % ANVIL_FORGE_INTERVAL == 0:   
             safe_statics = [p for p in world.my_planets if world.is_static(p.id) and p.id != anvil.id
                             and world.holds_full_map.get(p.id, False)
                             and world.first_enemy_map.get(p.id) is None]
@@ -2213,13 +2257,16 @@ def plan_moves(world, deadline=None):
                 angle, turns, _, _ = aim
                 append_move(src.id, angle, forge_send)
                 planned_commitments[anvil.id].append((turns, world.player, forge_send))
-
-    # Defensive missions first
+    
+    # 1. Build all possible missions (CLEANED UP)
     if allow_heavy_phase():
         missions.extend(build_reinforce_missions(world, policy, planned_commitments, modes, source_inventory_left))
     missions.extend(build_rescue_missions(world, policy, planned_commitments, modes))
     missions.extend(build_recapture_missions(world, policy, planned_commitments, modes))
     missions.extend(build_tot_swarm_missions(world, policy, planned_commitments, modes))
+
+    # 3. Sort by priority
+    missions.sort(key=lambda item: -item.score)
 
     # ========================== SINGLE PASS O(N²) ============================
     for src in world.my_planets:
@@ -2236,7 +2283,6 @@ def plan_moves(world, deadline=None):
                                             planned_commitments, modes, policy)
                 if snipe is not None: missions.append(snipe)
 
-            # 🚀 KINETIC AWARENESS: Give the pathfinder a high-mass hint to register fast routes
             fast_hint = min(src_available, 60)
             seeded = world.best_probe_aim(src.id, target.id, src_available,
                                           hints=(int(target.ships) + 1, fast_hint))
@@ -2286,8 +2332,6 @@ def plan_moves(world, deadline=None):
                 value = target_value(target, turns, "capture", world, modes, policy)
                 if value <= 0: continue
 
-                # Change the viability check to allow aggression
-                # Put this back to normal. We cannot ignore ROI completely.
                 if target.id not in world.exposed_planet_ids:
                     if not is_economically_viable(value, send_cap, turns, world): continue
 
@@ -2308,6 +2352,7 @@ def plan_moves(world, deadline=None):
     for target_id, options in source_options_by_target.items():
         if expired(): return finalize_moves()
         if len(options) < 2: continue
+
         target = world.planet_by_id[target_id]
         top_options = sorted(options, key=lambda item: -item.score)[:MULTI_SOURCE_TOP_K]
 
@@ -2403,7 +2448,7 @@ def plan_moves(world, deadline=None):
 
     missions.sort(key=lambda item: -item.score)
 
-# Commit missions (including mace, hammer, hammer_rescue)
+    # Commit missions (CLEANED UP WITHOUT PINCER)
     for mission in missions:
         if expired(): return finalize_moves()
         target = world.planet_by_id[mission.target_id]
@@ -2429,8 +2474,6 @@ def plan_moves(world, deadline=None):
                     planned_commitments[target.id].append((turns, world.player, int(sent)))
                 continue
 
-            # 🚨 THE FSM STRICT BYPASS 🚨
-            # Do not let settle_plan truncate the Anvil's calculated mass!
             if mission.kind in ("hammer", "mace", "hammer_rescue"):
                 send = min(left, option.send_cap)
                 if send <= 0: continue
@@ -2527,7 +2570,7 @@ def plan_moves(world, deadline=None):
         if sum(item[2] for item in committed) < missing: continue
         planned_commitments[target.id].extend(committed)
 
-    # Optional second pass, doomed evacuation, rear staging, total war (unchanged)
+    # Optional second pass, doomed evacuation, rear staging, total war
     if not world.is_very_late and allow_optional_phase():
         for src in world.my_planets:
             if expired(): return finalize_moves()
@@ -2708,9 +2751,7 @@ def plan_moves(world, deadline=None):
             sent = append_move(src.id, angle, left)
             if sent >= 1:
                 planned_commitments[target_id].append((turns, world.player, int(sent)))
-    # ==========================================
-    # BLACK BOX TELEMETRY (Only prints for Main Agent)
-    # ==========================================
+    
     if world.step % 10 == 0:
         fsm = world.fsm_state
         anv_id = world.anvil_planet.id if world.anvil_planet else "NONE"
@@ -2718,7 +2759,7 @@ def plan_moves(world, deadline=None):
         my_p = world.my_prod
         tot_p = world.total_production
         ratio = my_p / max(1, tot_p)
-        print(f"[Tick {world.step:03d} | P{world.player}] FSM: {fsm} | Anvil ID: {anv_id} (Ships: {anv_ships}) | Prod Ratio: {ratio:.2f}", flush=True)
+        # print(f"[Tick {world.step:03d} | P{world.player}] FSM: {fsm} | Anvil ID: {anv_id} (Ships: {anv_ships}) | Prod Ratio: {ratio:.2f}", flush=True)
 
     return finalize_moves()
 

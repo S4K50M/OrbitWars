@@ -9,16 +9,17 @@ from kaggle_environments import make
 os.makedirs("./replays", exist_ok=True)
 
 # Define our primary agent
-MAIN_AGENT_NAME = "f-aurora-forge"
+MAIN_AGENT_NAME = "g-The-Graphler"
 main_agent = f"./agents/{MAIN_AGENT_NAME}.py"
 
 # Define the gauntlet of opponents
 opponents = [
-    "./agents/e-tankman.py",
+    # "./agents/e-tankman.py",
     "./agents/d-eclipse-predator.py",
     "./Testing-agents/apex-predator.py",
     "./agents/c-optimized-sniper.py",
-    "./agents/b-Snipe+No-BOM.py"
+    "./agents/b-Snipe+No-BOM.py",
+    "./agents/f-aurora-forge.py"
 ]
 
 def generate_tournament_matches():
