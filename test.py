@@ -9,7 +9,7 @@ from kaggle_environments import make
 os.makedirs("./replays", exist_ok=True)
 
 # Define our primary agent
-MAIN_AGENT_NAME = "g-The-Graphler"
+MAIN_AGENT_NAME = "i-TheFlow"
 main_agent = f"./agents/{MAIN_AGENT_NAME}.py"
 
 # Define the gauntlet of opponents
@@ -58,10 +58,11 @@ results_summary = []
 main_agent_stats = {"wins": 0, "losses": 0, "1v1_wins": 0, "ffa_wins": 0}
 
 print("=" * 70)
-print(f"🚀 STARTING AURORA FORGE GAUNTLET ({len(matches)} MATCHES) 🚀")
+print(f"🚀 STARTING GAUNTLET ({len(matches)} MATCHES) 🚀")
 print("=" * 70 + "\n")
 
 for match in matches:
+    # if match['id'] >5: continue
     print(f"Running Match {match['id']} | {match['type']} | Seed: {match['seed']}...")
     
     agent_paths = [a["path"] for a in match["agents"]]
