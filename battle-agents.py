@@ -3,19 +3,24 @@ import time
 from kaggle_environments import make
 
 # Define our competitors
-agent_a = "./agents/e-tankman.py"
-agent_b = "./Testing-agents/apex-predator.py"
+agent_a = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/expAgent.py"
+agent_b = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/MultiAgent.py"
 
 # Generate 5 random seeds for the tournament
-seeds = [random.randint(1, 999999) for _ in range(5)]
+seeds = [random.randint(1, 999999) for _ in range(10)]
 
 # Configure the 5 matches: 3x 2-player, 2x 4-player 
 matches = [
     {"mode": "2-player", "seed": seeds[0], "agents": [agent_a, agent_b]},
-    {"mode": "4-player", "seed": seeds[1], "agents": [agent_a, agent_b, agent_a, agent_b]},
+    {"mode": "2-player", "seed": seeds[1], "agents": [agent_a, agent_b]},
     {"mode": "2-player", "seed": seeds[2], "agents": [agent_a, agent_b]},
     {"mode": "4-player", "seed": seeds[3], "agents": [agent_a, agent_b, agent_a, agent_b]},
-    {"mode": "2-player", "seed": seeds[4], "agents": [agent_a, agent_b]}
+    {"mode": "4-player", "seed": seeds[4], "agents": [agent_a, agent_b, agent_a, agent_b]},
+    {"mode": "2-player", "seed": seeds[5], "agents": [agent_a, agent_b]},
+    {"mode": "2-player", "seed": seeds[6], "agents": [agent_a, agent_b]},
+    {"mode": "2-player", "seed": seeds[7], "agents": [agent_a, agent_b]},
+    {"mode": "4-player", "seed": seeds[8], "agents": [agent_a, agent_b, agent_a, agent_b]},
+    {"mode": "4-player", "seed": seeds[9], "agents": [agent_a, agent_b, agent_a, agent_b]},
 ]
 
 results_summary = []
