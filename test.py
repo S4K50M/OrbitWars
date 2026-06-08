@@ -10,7 +10,7 @@ os.makedirs("./replays", exist_ok=True)
 
 # Define our primary agent
 MAIN_AGENT_NAME = "King"
-main_agent = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/MultiAgent.py"
+main_agent = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/restAgent.py"
 
 # Define the gauntlet of opponents
 opponents = [
