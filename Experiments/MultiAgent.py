@@ -4777,6 +4777,91 @@ def _movement_config(config: ProducerLiteConfig, *, player_count: int) -> Moveme
     )
 
 
+def inject_predicted_enemy_moves(
+    movement: PlanetMovement,
+    obs,
+    obs_tensors,
+    cache,
+    garrison_status: PlanetGarrisonStatus,
+    config: ProducerLiteConfig,
+    player_count: int,
+    prod: Tensor,
+):
+    """
+    Simulates 1 turn of enemy logic. Finds their best moves and injects 
+    them into the garrison_status as if they are already in flight.
+    """
+    P = obs.P
+    device = obs.device
+    dtype = obs.ships.dtype
+    my_pid = int(obs.player_id)
+    
+    H_axis = int(garrison_status.ships.shape[-1])
+    H = max(H_axis - 1, 0)
+    K_eta = max(1, min(int(config.horizon), H))
+    
+    # Loop over all possible opponents
+    for opp_id in range(player_count):
+        if opp_id == my_pid:
+            continue
+            
+        # 1. Identify Opponent Sources
+        opp_owned = obs.alive & (obs.owner_abs == opp_id)
+        opp_source_mask = opp_owned & (obs.ships >= float(config.min_ships_to_launch))
+        if not bool(opp_source_mask.any()):
+            continue
+            
+        # 2. Identify Opponent Targets (They want to attack us, other enemies, or neutrals)
+        opp_attack_mask = obs.alive & (obs.owner_abs != opp_id) & (obs.owner_abs >= 0)
+        
+        # 3. Build simplified candidate grid for this opponent
+        S_cap = 3 # Keep it small to save time
+        T_cap = 3
+        opp_src_idx, opp_src_exists = _candidate_indices(obs.ships, opp_source_mask, S_cap)
+        
+        proximity = min_distance_to_targets(cache, opp_source_mask, opp_attack_mask, max_k=K_eta)
+        opp_pref = torch.where(opp_attack_mask, -proximity, torch.full_like(proximity, float("-inf")))
+        opp_tgt_idx, opp_tgt_exists = _candidate_indices(opp_pref, opp_attack_mask, T_cap)
+        
+        S, T = int(opp_src_idx.shape[0]), int(opp_tgt_idx.shape[0])
+        if S == 0 or T == 0:
+            continue
+            
+        # 4. Aim & Filter
+        opp_ships = obs.ships[opp_src_idx.clamp(0, P - 1)].to(dtype)
+        sizes = opp_ships.view(S, 1).expand(S, T).floor()
+        
+        aim = intercept_angle(
+            movement,
+            opp_src_idx.unsqueeze(1),
+            opp_tgt_idx.unsqueeze(0),
+            sizes,
+        )
+        
+        valid = aim["viable"] & (aim["eta"] <= K_eta)
+        
+        # 5. Inject the top threats directly into the status buckets
+        if bool(valid.any()):
+            valid_src = opp_src_idx.view(S, 1).expand(S, T)[valid]
+            valid_tgt = opp_tgt_idx.view(1, T).expand(S, T)[valid]
+            valid_eta = aim["eta"][valid]
+            valid_ships = sizes[valid]
+            
+            # Write these predicted arrivals directly into the garrison status
+            # Our own scoring function will now "see" these incoming fleets
+            h_idx = torch.ceil(valid_eta).to(torch.long) - 1
+            h_idx = h_idx.clamp(0, H - 1)
+            
+            if garrison_status.arrivals_by_owner is not None:
+                garrison_status.arrivals_by_owner.index_put_(
+                    (valid_tgt, h_idx, torch.full_like(valid_tgt, opp_id)),
+                    valid_ships,
+                    accumulate=True
+                )
+
+
+
+
 def cheap_enemy_pressure(obs, cache, *, horizon: float, player_id: int) -> Tensor:
 
     """Cheap reachable-enemy-mass proxy per planet — ``[P]``.
@@ -5167,11 +5252,6 @@ def plan_lite_waves(
 
 
 def run_turn(obs_tensors: dict, *, config: ProducerLiteConfig, player_count: int, memory) -> dict:
-
-    """Full per-turn pipeline: build movement → plan single-size waves + regroup → emit.
-    ``memory`` must expose a mutable ``movement`` attribute (the rolling cache).
-    """
-
     device = obs_tensors["planets"].device
     obs = parse_obs(obs_tensors)
     P = obs.P
@@ -5187,9 +5267,19 @@ def run_turn(obs_tensors: dict, *, config: ProducerLiteConfig, player_count: int
     memory.movement = movement
     cache = build_distance_cache(movement, max_k=int(config.horizon))
     H = int(config.horizon)
+    
+    # 1. Base Forecast
     status = movement.garrison_status(max_horizon=H)
     alive_by_step = movement.alive_by_step[: H + 1]
 
+    # 2. INJECT ENEMY PREDICTIONS HERE
+    inject_predicted_enemy_moves(
+        movement=movement, obs=obs, obs_tensors=obs_tensors, 
+        cache=cache, garrison_status=status, config=config, 
+        player_count=player_count, prod=movement.planet_prod
+    )
+
+    # 3. Plan our waves against the newly contested status
     entries = plan_lite_waves(
         movement=movement, obs=obs, obs_tensors=obs_tensors, cache=cache,
         garrison_status=status, prod=movement.planet_prod,

@@ -3,8 +3,8 @@ import time
 from kaggle_environments import make
 
 # Define our competitors
-agent_a = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/MultiAgent.py"
-agent_b = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/choiceMultiAgent.py"
+agent_a = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/MultiSearchAgent.py"
+agent_b = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/MultiAgent.py"
 
 # Generate 5 random seeds for the tournament
 seeds = [random.randint(1, 999999) for _ in range(10)]
