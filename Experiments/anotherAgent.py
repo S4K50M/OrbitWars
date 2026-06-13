@@ -4119,12 +4119,6 @@ def friendly_flip_targets(
 def build_target_shortlist(
     obs, obs_tensors, garrison_status, cache, *, config, K_eta, H, prod, source_mask,voronoi_map=None
 ):
-
-    """Single unified shortlist: ``max_offensive_targets`` enemy/neutral targets by
-    proximity ∪ ``max_defensive_targets`` friendly-flip targets by urgency., The
-    two caps are independent (shortlist width == offensive + defensive), so each can
-    be swept on its own. Returns ``(target_idx, target_exists)``."""
-
     P = obs.P
     device = obs.device
     n_attack = max(1, min(int(config.max_offensive_targets), P))
@@ -4133,32 +4127,56 @@ def build_target_shortlist(
     attack_mask = attack_target_mask(obs, obs_tensors)
     proximity = min_distance_to_targets(cache, source_mask, attack_mask, max_k=K_eta)
 
-    # 1. Base Targeting Preference (Default to pure proximity)
     base_preference = -proximity
 
-    # 2. Block 3, Change 4: Production-Weighted ROI Calculation
     if config.enable_roi_targeting:
         tgt_prod = obs.prod.to(proximity.dtype)
         tgt_ships = obs.ships.to(proximity.dtype)
         safe_prox = torch.clamp(proximity, min=1.0)
-        
-        # ROI Formula: Yield compounds over distance, penalized slightly by fat garrisons
-        # V(t) = (production * weight) / distance - (current_garrison * defense_discount)
-        base_preference = (tgt_prod * float(config.roi_production_weight)) / safe_prox - (tgt_ships * 0.05)
 
-    
-    # NEW: Apply Voronoi Penalty for targets deep in enemy space
+        # Momentum factor: how much of the strategic horizon is left to enjoy
+        # this planet's production after capture, expressed as a fraction in
+        # roughly [0.6, 1.0] rather than an absolute ~40-turn multiplier.
+        # eta_approx is clamped to K_eta so it can never claim more
+        # post-capture runway than the planner's own horizon.
+        eta_approx = torch.clamp(safe_prox / 4.0, max=float(K_eta))
+        strategic_horizon = max(float(config.strategic_horizon), 1.0)
+        momentum_factor = ((strategic_horizon - eta_approx) / strategic_horizon).clamp(min=0.3, max=1.0)
+
+        # Mild bonus for enemy targets, but only when they're not deep in
+        # enemy territory (reuse the same Voronoi gate as territory_penalty) -
+        # a heavily-defended enemy core shouldn't ALSO get a multiplier on
+        # top of being hard to take.
+        shallow_enemy = obs.is_enemy
+        if config.enable_voronoi_features and voronoi_map is not None:
+            shallow_enemy = shallow_enemy & (voronoi_map["margin"] > -3.0)
+        swing_multiplier = torch.where(shallow_enemy, 1.25, 1.0).to(proximity.dtype)
+
+        base_preference = (
+            tgt_prod * momentum_factor * swing_multiplier * float(config.roi_production_weight)
+        ) / safe_prox - (tgt_ships * 0.05)
+
     territory_penalty = torch.zeros_like(proximity)
     if config.enable_voronoi_features and voronoi_map is not None:
         margin = voronoi_map["margin"]
-        # If margin is negative, enemy reaches it faster. Deep enemy territory is < -3 turns.
         is_deep_enemy = margin < -3.0
-        # Add the negative margin (multiplied by weight) to decrease the score
         territory_penalty = torch.where(is_deep_enemy, margin * float(config.voronoi_deep_enemy_penalty), 0.0)
 
-    # V(t) = base_preference + territory_penalty
     attack_pref = torch.where(attack_mask, base_preference + territory_penalty, torch.full_like(base_preference, float("-inf")))
-    atk_idx, atk_exists = _candidate_indices(attack_pref, attack_mask, n_attack)
+
+    # Split the offensive shortlist: ~2/3 momentum/ROI-ranked, ~1/3 pure
+    # nearest-target. The second sub-quota guarantees easy, achievable
+    # expansion always has shortlist presence even when momentum/ROI
+    # ranking is dominated by distant, well-defended production planets.
+    n_momentum = max(1, n_attack - max(1, n_attack // 3))
+    n_expand = max(1, n_attack - n_momentum)
+
+    momentum_idx, momentum_exists = _candidate_indices(attack_pref, attack_mask, n_momentum)
+    expand_pref = torch.where(attack_mask, -proximity, torch.full_like(proximity, float("-inf")))
+    expand_idx, expand_exists = _candidate_indices(expand_pref, attack_mask, n_expand)
+
+    atk_idx = torch.cat([momentum_idx, expand_idx], dim=0)
+    atk_exists = torch.cat([momentum_exists, expand_exists], dim=0)
 
     if R > 0:
         flip_mask, urgency = friendly_flip_targets(obs, garrison_status, H=H, prod=prod)
@@ -4240,16 +4258,20 @@ def reachable_mask(
 
 
 
-def _greedy_select(
+def _greedy_select_single(
     *, P, W, device, dtype, score, cand_src, cand_send, cand_angle, cand_eta,
     cand_active, cand_tgt_slot, cand_tgt_short, cand_is_def, source_budget,
-    target_exists, roi_threshold,
+    target_exists, roi_threshold, cand_mask,
 ) -> tuple[LaunchEntries, Tensor]:
+    """One greedy rollout over W waves, restricted to candidates where
+    cand_mask is True. This is the original single-pass greedy selector,
+    parameterized by which slice of the candidate pool it's allowed to use.
+    """
 
     C, L = int(cand_src.shape[0]), int(cand_src.shape[1])
-    target_taken = ~target_exists.clone()                                        
-    defended = torch.zeros(P, dtype=torch.bool, device=device)                   
-    used_src = torch.zeros(P, dtype=torch.bool, device=device)                   
+    target_taken = ~target_exists.clone()
+    defended = torch.zeros(P, dtype=torch.bool, device=device)
+    used_src = torch.zeros(P, dtype=torch.bool, device=device)
 
     w_src = torch.zeros(W, L, dtype=torch.long, device=device)
     w_send = torch.zeros(W, L, dtype=dtype, device=device)
@@ -4259,23 +4281,24 @@ def _greedy_select(
     w_active = torch.zeros(W, L, dtype=torch.bool, device=device)
 
     for w in range(W):
-        taken_cand = target_taken[cand_tgt_short]                               
-        budget_at = source_budget[cand_src]                                     
-        can_fund = ((cand_send <= budget_at) | ~cand_active).all(dim=-1)        
+        taken_cand = target_taken[cand_tgt_short]
+        budget_at = source_budget[cand_src]
+        can_fund = ((cand_send <= budget_at) | ~cand_active).all(dim=-1)
+        tgt_used_as_src = used_src[cand_tgt_slot]
+        contrib_defended = (defended[cand_src] & cand_active).any(dim=-1)
 
-        tgt_used_as_src = used_src[cand_tgt_slot]                               
-        contrib_defended = (defended[cand_src] & cand_active).any(dim=-1)       
-        mask = torch.isfinite(score) & ~taken_cand & can_fund & ~tgt_used_as_src & ~contrib_defended
+        mask = (
+            cand_mask & torch.isfinite(score) & ~taken_cand & can_fund
+            & ~tgt_used_as_src & ~contrib_defended
+        )
         masked = torch.where(mask, score, torch.full_like(score, float("-inf")))
-        best_c = _stable_argmax(masked)                                         
+        best_c = _stable_argmax(masked)
         best_score = masked[best_c]
 
-        fired = bool(torch.isfinite(best_score) & (best_score > roi_threshold))
-
-        if not fired:
+        if not bool(torch.isfinite(best_score) & (best_score > roi_threshold)):
             break
 
-        sel_src = cand_src[best_c]                   
+        sel_src = cand_src[best_c]
         sel_send = cand_send[best_c]
         sel_active = cand_active[best_c]
         w_src[w] = sel_src
@@ -4288,7 +4311,6 @@ def _greedy_select(
         debit = torch.zeros_like(source_budget)
         debit.scatter_add_(0, sel_src, torch.where(sel_active, sel_send, torch.zeros_like(sel_send)))
         source_budget = (source_budget - debit).clamp(min=0.0)
-
         target_taken[cand_tgt_short[best_c]] = True
 
         src_mark = torch.zeros(P, dtype=torch.long, device=device)
@@ -4308,6 +4330,79 @@ def _greedy_select(
         valid=w_active.reshape(WL),
     )
     return entries, source_budget
+
+
+def _hybrid_select(
+    *, P, W, device, dtype, score, cand_src, cand_send, cand_angle, cand_eta,
+    cand_active, cand_tgt_slot, cand_tgt_short, cand_is_def, cand_is_enemy_tgt,
+    source_budget, target_exists, roi_threshold,
+    garrison_status, prod, alive_by_step, player_count, player_id,
+    n_archetypes: int = 3,
+) -> tuple[LaunchEntries, Tensor]:
+    """Run a few full greedy rollouts, each restricted to a different
+    candidate-pool archetype, and pick the one with the best EXACT combined
+    competitive_score for its whole multi-wave plan.
+
+    Archetypes (in order, sliced to n_archetypes):
+      - full:   no restriction (today's behaviour)
+      - expand: neutral + defensive only - guarantees the economy keeps
+                growing even when the strategic shortlist skews toward
+                heavily-defended enemy production planets
+      - press:  enemy + defensive only - the aggressive pool
+
+    Each rollout's combined effect is scored with ONE
+    sparse_launch_flow_delta call over its full launch table, so the
+    comparison across archetypes is exact rather than a sum of
+    independently-computed deltas. A plan with zero valid entries scores
+    exactly 0.0 (the do-nothing baseline), so doing nothing beats a plan
+    that would make things worse.
+    """
+
+    C = int(cand_src.shape[0])
+    full_mask = torch.ones(C, dtype=torch.bool, device=device)
+    expand_mask = full_mask & (~cand_is_enemy_tgt | cand_is_def)
+    press_mask = full_mask & (cand_is_enemy_tgt | cand_is_def)
+
+    archetypes = [full_mask, expand_mask, press_mask][: max(1, min(3, int(n_archetypes)))]
+
+    best_entries: LaunchEntries | None = None
+    best_budget: Tensor | None = None
+    best_total = float("-inf")
+
+    for cand_mask in archetypes:
+        entries, leftover_budget = _greedy_select_single(
+            P=P, W=W, device=device, dtype=dtype, score=score,
+            cand_src=cand_src, cand_send=cand_send, cand_angle=cand_angle, cand_eta=cand_eta,
+            cand_active=cand_active, cand_tgt_slot=cand_tgt_slot, cand_tgt_short=cand_tgt_short,
+            cand_is_def=cand_is_def, source_budget=source_budget.clone(),
+            target_exists=target_exists, roi_threshold=roi_threshold, cand_mask=cand_mask,
+        )
+
+        if not bool(entries.valid.any()):
+            total = 0.0
+        else:
+            plan = LaunchSet(
+                source_slots=entries.source_slots,
+                target_slots=entries.target_slots,
+                ships=entries.ships,
+                eta=entries.eta,
+                owner=torch.full_like(entries.source_slots, int(player_id)),
+                valid=entries.valid,
+            )
+            diff = sparse_launch_flow_delta(
+                garrison_status, prod=prod, alive_by_step=alive_by_step,
+                player_count=int(player_count), launches=plan, player_id=int(player_id),
+            )
+            total = float(competitive_score(diff, player_id=int(player_id)).item())
+
+        if total > best_total:
+            best_total = total
+            best_entries = entries
+            best_budget = leftover_budget
+
+    assert best_entries is not None and best_budget is not None
+    return best_entries, best_budget
+
 
 def _plan_regroup(
     *, movement, obs, obs_tensors, garrison_status, leftover, original_ships,
@@ -4558,135 +4653,108 @@ def _infer_player_count_from_obs(planets: list[Any], fleets: list[Any], player_i
     return 4 if max(owners, default=0) >= 2 else 2
 
 
-
+def _allocate_obs_buffer(P: int, F: int, device: torch.device) -> dict[str, Any]:
+    """Pre-allocate fixed-size tensors for the game duration to avoid reallocation overhead."""
+    return {
+        "planets": torch.zeros(P, 7, dtype=torch.float32, device=device),
+        "initial_planets": torch.zeros(P, 7, dtype=torch.float32, device=device),
+        "fleets": torch.zeros(F, 7, dtype=torch.float32, device=device),
+        "player": torch.zeros((), dtype=torch.int32, device=device),
+        "player_count": torch.zeros((), dtype=torch.int32, device=device),
+        "angular_velocity": torch.zeros((), dtype=torch.float32, device=device),
+        "next_fleet_id": torch.zeros((), dtype=torch.int32, device=device),
+        "step": torch.zeros((), dtype=torch.int32, device=device),
+        "episode_steps": torch.zeros((), dtype=torch.int32, device=device),
+        "remainingOverageTime": torch.zeros((), dtype=torch.float32, device=device),
+        "comet_planet_ids": torch.full((COMET_EVENTS * COMETS_PER_EVENT,), -1, dtype=torch.int32, device=device),
+        "comets": {
+            "planet_ids": torch.full((COMET_EVENTS, COMETS_PER_EVENT), -1, dtype=torch.int32, device=device),
+            "paths": torch.full((COMET_EVENTS, COMETS_PER_EVENT, COMET_PATH_MAX, 2), float("nan"), dtype=torch.float32, device=device),
+            "path_index": torch.full((COMET_EVENTS,), -1, dtype=torch.int32, device=device),
+        }
+    }
 
 
 def _dict_obs_to_tensor(
-
     obs: dict[str, Any],
     player_id: int,
     P: int = P_MAX,
     F: int = F_MAX,
     device: Any = "cpu",
+    buffer: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
 
-    """Convert an observation dict to a single-game tensor observation.
-    Input format::
-        obs["planets"] = [[planet_id, owner, x, y, radius, ships, production], ...]
-        obs["fleets"]  = [[fleet_id, owner, x, y, angle, from_id, ships], ...]
-    Returns a tensor observation dict::
-
-        "planets" : [P, 7]            "fleets" : [F, 7]
-        "initial_planets" : [P, 7]    "comet_planet_ids" : [G*C]
-        "comets" : nested padded tensors
-        "player" / "angular_velocity" / "next_fleet_id" / "step" /
-        "episode_steps" / "remainingOverageTime" : scalar
-    """
-
     dev = torch.device(device)
+    if buffer is None:
+        buffer = _allocate_obs_buffer(P, F, dev)
+
     planets_raw = obs.get("planets", [])
     initial_planets_raw = obs.get("initial_planets", planets_raw)
     fleets_raw = obs.get("fleets", [])
     comets_raw = obs.get("comets", [])
     comet_planet_ids_raw = obs.get("comet_planet_ids", [])
-    step = int(obs.get("step", 0))
-    angvel = float(obs.get("angular_velocity", 0.03))
-    max_steps = int(obs.get("episode_steps", DEFAULT_EPISODE_STEPS))
-    remaining_overtime = float(obs.get("remainingOverageTime", 2.0))
-    next_fleet_id = int(obs.get("next_fleet_id", 0))
 
-    planet_t = torch.zeros(P, 7, dtype=torch.float32, device=dev)
-    planet_t[..., 0] = -1.0
-    for i, p in enumerate(planets_raw[:P]):
-        pid, owner, x, y, r, ships, prod = p[:7]
-        planet_t[i, 0] = float(pid)
-        planet_t[i, 1] = float(owner)
-        planet_t[i, 2] = float(x)
-        planet_t[i, 3] = float(y)
-        planet_t[i, 4] = float(r)
-        planet_t[i, 5] = float(ships)
-        planet_t[i, 6] = float(prod)
+    # --- Scalars ---
+    buffer["player"].fill_(player_id)
+    buffer["player_count"].fill_(_infer_player_count_from_obs(planets_raw, fleets_raw, player_id))
+    buffer["angular_velocity"].fill_(float(obs.get("angular_velocity", 0.03)))
+    buffer["next_fleet_id"].fill_(int(obs.get("next_fleet_id", 0)))
+    buffer["step"].fill_(int(obs.get("step", 0)))
+    buffer["episode_steps"].fill_(int(obs.get("episode_steps", DEFAULT_EPISODE_STEPS)))
+    buffer["remainingOverageTime"].fill_(float(obs.get("remainingOverageTime", 2.0)))
 
+    # --- Vectorized Planets ---
+    buffer["planets"][:, 0].fill_(-1.0)  # Sentinel: -1 marks empty slots
+    if planets_raw:
+        p_ten = torch.tensor(planets_raw, dtype=torch.float32, device=dev)
+        N = min(p_ten.shape[0], P)
+        buffer["planets"][:N, :7] = p_ten[:N, :7]
 
-    initial_planet_t = torch.zeros(P, 7, dtype=torch.float32, device=dev)
-    initial_planet_t[..., 0] = -1.0
-    for i, p in enumerate(initial_planets_raw[:P]):
-        pid, owner, x, y, r, ships, prod = p[:7]
-        initial_planet_t[i, 0] = float(pid)
-        initial_planet_t[i, 1] = float(owner)
-        initial_planet_t[i, 2] = float(x)
-        initial_planet_t[i, 3] = float(y)
-        initial_planet_t[i, 4] = float(r)
-        initial_planet_t[i, 5] = float(ships)
-        initial_planet_t[i, 6] = float(prod)
+    # --- Vectorized Initial Planets ---
+    buffer["initial_planets"][:, 0].fill_(-1.0)
+    if initial_planets_raw:
+        ip_ten = torch.tensor(initial_planets_raw, dtype=torch.float32, device=dev)
+        N = min(ip_ten.shape[0], P)
+        buffer["initial_planets"][:N, :7] = ip_ten[:N, :7]
 
-    fleet_t = torch.zeros(F, 7, dtype=torch.float32, device=dev)
-    fleet_t[..., 0] = -1.0
-    fleet_t[..., 5] = -1.0
-    
-    for i, f in enumerate(fleets_raw[:F]):
-        fid, owner, x, y, angle, from_id, ships = f[:7]
-        fleet_t[i, 0] = float(fid)
-        fleet_t[i, 1] = float(owner)
-        fleet_t[i, 2] = float(x)
-        fleet_t[i, 3] = float(y)
-        fleet_t[i, 4] = float(angle)
-        fleet_t[i, 5] = float(from_id)
-        fleet_t[i, 6] = float(ships)
+    # --- Vectorized Fleets ---
+    buffer["fleets"][:, 0].fill_(-1.0)
+    buffer["fleets"][:, 5].fill_(-1.0)
+    if fleets_raw:
+        f_ten = torch.tensor(fleets_raw, dtype=torch.float32, device=dev)
+        N = min(f_ten.shape[0], F)
+        buffer["fleets"][:N, :7] = f_ten[:N, :7]
 
-    comet_ids = torch.full((COMET_EVENTS, COMETS_PER_EVENT), -1, dtype=torch.int32, device=dev)
-    comet_paths = torch.full(
-        (COMET_EVENTS, COMETS_PER_EVENT, COMET_PATH_MAX, 2),
-        float("nan"),
-        dtype=torch.float32,
-        device=dev,
-    )
+    # --- Vectorized Comet IDs ---
+    buffer["comet_planet_ids"].fill_(-1)
+    if comet_planet_ids_raw:
+        c_ids = torch.tensor(comet_planet_ids_raw, dtype=torch.int32, device=dev)
+        N_c = min(c_ids.shape[0], COMET_EVENTS * COMETS_PER_EVENT)
+        buffer["comet_planet_ids"][:N_c] = c_ids[:N_c]
 
-    comet_path_index = torch.full((COMET_EVENTS,), -1, dtype=torch.int32, device=dev)
+    # --- Vectorized Comet Paths (Removes the nested 800-iteration loop) ---
+    c_buf = buffer["comets"]
+    c_buf["path_index"].fill_(-1)
+    c_buf["planet_ids"].fill_(-1)
+    c_buf["paths"].fill_(float("nan"))
 
-    for group_idx, group in enumerate(comets_raw[:COMET_EVENTS]):
-        comet_path_index[group_idx] = int(group.get("path_index", -1))
-        group_ids = group.get("planet_ids", [])
-        group_paths = group.get("paths", [])
+    for i, group in enumerate(comets_raw[:COMET_EVENTS]):
+        c_buf["path_index"][i] = int(group.get("path_index", -1))
 
-        for comet_idx, pid in enumerate(group_ids[:COMETS_PER_EVENT]):
-            comet_ids[group_idx, comet_idx] = int(pid)
+        ids = group.get("planet_ids", [])
+        if ids:
+            c_buf["planet_ids"][i, :min(len(ids), COMETS_PER_EVENT)] = torch.tensor(ids[:COMETS_PER_EVENT], dtype=torch.int32, device=dev)
 
-        for comet_idx, path in enumerate(group_paths[:COMETS_PER_EVENT]):
-            
-            for point_idx, point in enumerate(path[:COMET_PATH_MAX]):
-                comet_paths[group_idx, comet_idx, point_idx, 0] = float(point[0])
-                comet_paths[group_idx, comet_idx, point_idx, 1] = float(point[1])
+        paths = group.get("paths", [])
+        if paths:
+            # Pushes the entire [comets, path_points, 2] structure into C++ instantly
+            p_ten = torch.tensor(paths, dtype=torch.float32, device=dev)
+            C_len, T_len, _ = p_ten.shape
+            C_len = min(C_len, COMETS_PER_EVENT)
+            T_len = min(T_len, COMET_PATH_MAX)
+            c_buf["paths"][i, :C_len, :T_len, :] = p_ten[:C_len, :T_len, :]
 
-    comet_planet_ids = torch.full(
-        (COMET_EVENTS * COMETS_PER_EVENT,),
-        -1,
-        dtype=torch.int32,
-        device=dev,
-    )
-
-    for idx, pid in enumerate(comet_planet_ids_raw[: COMET_EVENTS * COMETS_PER_EVENT]):
-        comet_planet_ids[idx] = int(pid)
-
-    return {
-        "planets": planet_t,
-        "fleets": fleet_t,
-        "player": torch.tensor(player_id, dtype=torch.int32, device=dev),
-        "player_count": torch.tensor(_infer_player_count_from_obs(planets_raw, fleets_raw, player_id), dtype=torch.int32, device=dev),
-        "angular_velocity": torch.tensor(angvel, dtype=torch.float32, device=dev),
-        "initial_planets": initial_planet_t,
-        "next_fleet_id": torch.tensor(next_fleet_id, dtype=torch.int32, device=dev),
-        "comets": {
-            "planet_ids": comet_ids,
-            "paths": comet_paths,
-            "path_index": comet_path_index,
-        },
-        "comet_planet_ids": comet_planet_ids,
-        "step": torch.tensor(step, dtype=torch.int32, device=dev),
-        "episode_steps": torch.tensor(max_steps, dtype=torch.int32, device=dev),
-        "remainingOverageTime": torch.tensor(remaining_overtime, dtype=torch.float32, device=dev),
-    }
-
+    return buffer
 
 def _sparse_actions_to_list(
     action_payload: dict[str, Any],
@@ -4742,12 +4810,9 @@ def single_obs_to_tensor(
     P: int = P_MAX,
     F: int = F_MAX,
     device: Any = "cpu",
+    buffer: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-
-    """Public wrapper: convert one observation dict to a tensor observation."""
-
-    return _dict_obs_to_tensor(obs, player_id=player_id, P=P, F=F, device=device)
-
+    return _dict_obs_to_tensor(obs, player_id=player_id, P=P, F=F, device=device, buffer=buffer)
 
 def sparse_action_row_to_moves(
     action_payload: dict[str, Any],
@@ -4784,23 +4849,24 @@ if _HERE not in sys.path:
 
 @dataclass(frozen=True)
 class ProducerLiteConfig:
-
     """Behaviour knobs.  """
-    # the projection window, the movement build length, AND the target ETA cap 
     horizon: int = 18
 
     # --- shortlists ------------------------------------------------------
-
     max_sources_per_lane: int = 12
-    max_offensive_targets: int = 12         # enemy/neutral proximity targets
+    max_offensive_targets: int = 12         
     max_defensive_targets: int = 4          
 
-# --- scoring / greedy ------------------------------------------------
+    # --- scoring / greedy / beam -----------------------------------------
     max_waves_per_turn: int = 6
     roi_threshold: float = 1.5              
     min_ships_to_launch: float = 4.0
-    # --- regroup  ------------------------------
+    
+    # NEW: Beam Search & Momentum Configs
+    beam_width: int = 3                     # Universes to branch into on Wave 1
+    strategic_horizon: float = 45.0         # Turn window for momentum calculation
 
+    # --- regroup  ------------------------------
     enable_regroup: bool = True
     max_regroup_time: float = 7.0
     regroup_pressure_delta_min: float = 0.25
@@ -4809,32 +4875,26 @@ class ProducerLiteConfig:
     regroup_pressure_norm: str = "none"
     regroup_time_penalty_weight: float = 1e-3
 
-    # --- potential-attack RISK_SCORE (added to the regroup gradient) -----
+    # --- potential-attack RISK_SCORE -----
+    enable_potential_risk: bool = False     
+    risk_blend_weight: float = 1.0          
+    risk_enemy_prod_weight: float = 2.0     
+    risk_self_prod_weight: float = 2.0      
+    risk_support_weight: float = 0.5        
 
-    enable_potential_risk: bool = False     # defense feature off by default (no measured gain)
-    risk_blend_weight: float = 1.0          # weight of RISK added to cheap_enemy_pressure
-    risk_enemy_prod_weight: float = 2.0     # enemy strength = ships + w * production
-    risk_self_prod_weight: float = 2.0      # own-planet value  = 1 + w * production
-    risk_support_weight: float = 0.5        # friendly-neighbour discount strength
-
-    # --- focus fire (coordinated multi-source attack) -------------------
-
-    enable_focus_fire: bool = True          # pool same-step sources to take strong targets
-    max_strike_sources: int = 4             # max planets combined per strike (contributor cap L)
+    # --- focus fire -----------------------------------------------------
+    enable_focus_fire: bool = True          
+    max_strike_sources: int = 4             
 
     # --- Voronoi Territorial Control ---
     enable_voronoi_features: bool = True
-    voronoi_deep_enemy_penalty: float = 0.6  # Weight for penalizing attacks deep in enemy space
-    voronoi_border_focus: float = 0.4        # Weight for pulling regroup ships to the border
+    voronoi_deep_enemy_penalty: float = 0.6  
+    voronoi_border_focus: float = 0.4        
 
     enable_roi_targeting: bool = True
-    roi_production_weight: float = 15.0      # Priority weight for high-yield planets
-
-    # --- NEW: Fractional Sweep (Replaces Beam Search) ---
+    roi_production_weight: float = 15.0      
     enable_fractional_sizes: bool = False
 
-
-# 4P FFA preset — only the knobs that differ from the 2P default. 
 CONFIG_4P = dataclasses.replace(
     ProducerLiteConfig(),
     horizon=13,
@@ -4842,9 +4902,9 @@ CONFIG_4P = dataclasses.replace(
     max_defensive_targets=2,
     max_regroup_time=6.0,
     max_regroup_targets_per_source=8,
-    risk_blend_weight=0.5,                   # damp the precaution in diffuse 4p FFA
-    max_strike_sources=3,                    # leaner combined strikes in 4p FFA
-
+    risk_blend_weight=0.5,                   
+    max_strike_sources=3, 
+                   
     enable_voronoi_features = True,
     voronoi_deep_enemy_penalty = 3.0,
     voronoi_border_focus = 2.0,
@@ -5221,12 +5281,18 @@ def plan_lite_waves(
 
     score = torch.where(cand_valid, score, torch.full_like(score, float("-inf")))
 
-    wave_entries, leftover = _greedy_select(
+    cand_is_enemy_tgt = obs.is_enemy[cand_tgt_slot.clamp(0, P - 1)]
+
+    wave_entries, leftover = _hybrid_select(
         P=P, W=W, device=device, dtype=dtype, score=score,
         cand_src=cand_src, cand_send=cand_send, cand_angle=cand_angle, cand_eta=cand_eta,
         cand_active=cand_active, cand_tgt_slot=cand_tgt_slot, cand_tgt_short=cand_tgt_short,
-        cand_is_def=cand_is_def, source_budget=obs.ships.to(dtype).clone(),
+        cand_is_def=cand_is_def, cand_is_enemy_tgt=cand_is_enemy_tgt,
+        source_budget=obs.ships.to(dtype).clone(),
         target_exists=target_exists, roi_threshold=float(config.roi_threshold),
+        garrison_status=garrison_status, prod=prod, alive_by_step=alive_by_step,
+        player_count=int(player_count), player_id=pid,
+        n_archetypes=max(1, min(3, int(config.beam_width))),
     )
 
     if not bool(config.enable_regroup):
@@ -5306,11 +5372,13 @@ class ProducerLiteMemory:
         self.movement = None
         self.cached_player_count: int | None = None
         self.last_sparse_action_row: dict | None = None
+        self.obs_buffer: dict[str, Any] | None = None  # Add buffer tracking
 
     def reset(self) -> None:
         self.movement = None
         self.cached_player_count = None
         self.last_sparse_action_row = None
+        self.obs_buffer = None
 
 class ProducerLiteRuntime:
     def __init__(self, memory: ProducerLiteMemory | None = None) -> None:
@@ -5346,8 +5414,20 @@ def agent(obs):
 
     player = obs.get("player", 0) if isinstance(obs, dict) else obs.player
     player_id = int(player)
-    obs_tensors = single_obs_to_tensor(obs, player_id=player_id)
+    device = torch.device("cpu")  # Ensure this matches your targeted compute
+
     with torch.no_grad():
+        # 1. Grab or initialize the persistent memory buffer
+        if _RUNTIME.memory.obs_buffer is None:
+            _RUNTIME.memory.obs_buffer = _allocate_obs_buffer(P_MAX, F_MAX, device)
+        buffer = _RUNTIME.memory.obs_buffer
+        
+        # 2. Vectorized, in-place observation parsing
+        obs_tensors = single_obs_to_tensor(
+            obs, player_id=player_id, device=device, buffer=buffer
+        )
+        
+        # 3. Run the turn
         sparse_row = _RUNTIME.tensor_action(obs_tensors)
 
     return sparse_action_row_to_moves(sparse_row, obs, player_id=player_id)
