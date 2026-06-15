@@ -1,0 +1,137 @@
+Config 1
+
+
+@dataclass(frozen=True)
+class ProducerLiteConfig:
+    """Behaviour knobs."""
+    horizon: int = 18
+
+    # --- shortlists ------------------------------------------------------
+    max_sources_per_lane: int = 12
+    max_offensive_targets: int = 12         
+    max_defensive_targets: int = 4          
+
+    # --- scoring / greedy / beam -----------------------------------------
+    max_waves_per_turn: int = 6
+    roi_threshold: float = 1.5              
+    min_ships_to_launch: float = 4.0
+    
+    # --- NEW: Pipeline Switches ------------------------------------------
+    enable_state_controller: bool = False     # Toggles dynamic config scaling based on ship-share
+    enable_hybrid_select: bool = False        # Toggles multi-archetype rollout vs pure greedy
+    enable_dual_size_fleets: bool = False     # Toggles Sniper (exact) vs Doomstack (drain) dual-aiming
+    
+    beam_width: int = 3                     
+    strategic_horizon: float = 45.0         
+    
+    # --- NEW: FFA vs 1v1 Balancing Variables -----------------------------
+    garrison_buffer_multiplier: float = 0.0  # How thick to leave the garrison (2.0 = safe)
+    enemy_swing_weight: float = 2.0          # How much we value stealing enemy prod (2.0 = 1v1 zero-sum)
+    surplus_reward_weight: float = 0.1       # Reward for sending overkill fleets
+
+    # --- regroup  ------------------------------
+    enable_regroup: bool = True
+    max_regroup_time: float = 7.0
+    regroup_pressure_delta_min: float = 0.25
+    max_regroup_sources_per_lane: int = 6
+    max_regroup_targets_per_source: int = 7
+    regroup_pressure_norm: str = "none"
+    regroup_time_penalty_weight: float = 1e-3
+
+    # --- potential-attack RISK_SCORE -----
+    enable_potential_risk: bool = True     
+    risk_blend_weight: float = 1.0          
+    risk_enemy_prod_weight: float = 2.0     
+    risk_self_prod_weight: float = 2.0      
+    risk_support_weight: float = 0.5        
+
+    # --- focus fire -----------------------------------------------------
+    enable_focus_fire: bool = False          
+    max_strike_sources: int = 4             
+
+    # --- Voronoi Territorial Control ---
+    enable_voronoi_features: bool = True
+    voronoi_deep_enemy_penalty: float = 0.6  
+    voronoi_border_focus: float = 0.4        
+
+    enable_roi_targeting: bool = True
+    roi_production_weight: float = 15.0      
+
+    # =========================================================
+    # NEW FFA TOGGLES (Defaulted for 1v1 / Disabled)
+    # =========================================================
+    ffa_leader_attack_bonus: float = 0.0     # 0.0 disables anti-leader logic in 1v1
+    ffa_target_prod_bonus: float = 0.0       # 0.0 disables aggressive high-prod sniping
+    reinforce_margin_frac: float = 0.35      # Heavier paranoia for 1v1
+    comet_capture_min_hold: float = 10.0     # Standard comet hold time
+    
+    # Master switch to revert entirely to your old logic if needed
+    use_v7_ffa_tactics: bool = False
+
+    # =========================================================
+    # THE V7 UPGRADE TOGGLES
+    # =========================================================
+    # [v7-5] Adaptive Safe Drain (Frees up rear-planet ships)
+    enable_adaptive_drain: bool = True
+    drain_min_horizon: int = 6
+
+    # [v7-4] Production-Biased Shortlist (Ignores distance for high prod)
+    enable_prod_biased_shortlist: bool = True
+    prod_target_bonus: float = 3.0
+
+    # [v7-2] Staggered Pair Strikes (Optimized L=2 focus fire)
+    enable_pair_strikes: bool = False
+    pair_pad_ships: float = 4.0
+
+
+# 4P FFA preset — override the 1v1 mechanics here.
+CONFIG_4P = dataclasses.replace(
+    ProducerLiteConfig(),
+    horizon=13,
+    max_sources_per_lane=6,
+    max_defensive_targets=2,
+    max_regroup_time=6.0,
+    max_regroup_targets_per_source=8,
+    risk_blend_weight=0.5,                   
+    max_strike_sources=3,                    
+    enable_voronoi_features=True,
+    voronoi_deep_enemy_penalty=3.0,
+    voronoi_border_focus=2.0,
+    roi_production_weight=10.0,
+    
+    # 4v4 Context overrides: Expand fast, treat enemies like neutrals, ignore overkill
+    garrison_buffer_multiplier=0.0,
+    enemy_swing_weight=1.0,
+    surplus_reward_weight=0.0,
+
+    enable_hybrid_select = True,       # Toggles multi-archetype rollout vs pure greedy
+    enable_dual_size_fleets= True,     # Toggles Sniper (exact) vs Doomstack (drain) dual-aiming
+    
+    # =========================================================
+    # THE 92% WIN-RATE FFA OVERRIDES
+    # =========================================================
+    use_v7_ffa_tactics=True,                  # Toggle ON
+    ffa_leader_attack_bonus=0.08,             # Hunt the point leader
+    ffa_target_prod_bonus=0.15,               # Heavily weight high-yield planets
+    reinforce_margin_frac=0.15,               # Leaner reinforcement assumptions
+    comet_capture_min_hold=12.0,              # Stricter comet capture rules
+
+    enable_adaptive_drain=True,
+    enable_prod_biased_shortlist=True,
+    enable_pair_strikes = False
+)
+
+Results
+[1v1 Results]
+Total Matches : 50
+Test Wins     : 28
+Baseline Wins : 22
+Ties          : 0
+WIN RATE      : 56.0%
+
+[4v4 Results]
+Total Matches : 50
+Test Wins     : 27
+Baseline Wins : 19
+Ties          : 4
+WIN RATE      : 54.0%

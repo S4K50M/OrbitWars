@@ -8,8 +8,8 @@ from kaggle_environments import make
 # Configuration
 # ---------------------------------------------------------
 # Define our competitors - Update these paths as needed
-agent_baseline = "/home/saksham/Documents/kaggle/OrbitWars/Final Agent/agent.py"
-agent_test = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/FFAKing.py"
+agent_baseline = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/FFAKing.py"
+agent_test = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/LyonelHybrid.py"
 
 # Number of unique map seeds to generate
 NUM_SEEDS = 25  # This will result in 10x 1v1s and 10x 4v4s due to swapping
