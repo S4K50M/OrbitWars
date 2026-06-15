@@ -4148,12 +4148,23 @@ def build_target_shortlist(
 
     territory_penalty = torch.zeros_like(proximity)
     if config.enable_voronoi_features and voronoi_map is not None:
-        margin = voronoi_map["margin"]
-        is_deep_enemy = margin < -3.0
-        territory_penalty = torch.where(is_deep_enemy, margin * float(config.voronoi_deep_enemy_penalty), 0.0)
-
+        Voronoi_margin = voronoi_map["margin"]
+        # If margin is negative, enemy reaches it faster. Deep enemy territory is < -3 turns.
+        is_deep_enemy = Voronoi_margin < -3.0
+        # Add the negative margin (multiplied by weight) to decrease the score
+        territory_penalty = torch.where(is_deep_enemy, Voronoi_margin * float(config.voronoi_deep_enemy_penalty), 0.0)
+                                        
     attack_pref = torch.where(attack_mask, base_preference + territory_penalty, torch.full_like(base_preference, float("-inf")))
-    atk_idx, atk_exists = _candidate_indices(attack_pref, attack_mask, n_attack)
+    # In build_target_shortlist, replace the single _candidate_indices call:
+    n_roi = max(1, n_attack - max(1, n_attack // 3))      # ~2/3 by ROI/momentum  
+    n_prox = max(1, n_attack - n_roi)                      # ~1/3 by raw proximity
+
+    roi_idx, roi_exists = _candidate_indices(attack_pref, attack_mask, n_roi)
+    prox_pref = torch.where(attack_mask, -proximity, torch.full_like(proximity, float("-inf")))
+    prox_idx, prox_exists = _candidate_indices(prox_pref, attack_mask, n_prox)
+
+    atk_idx = torch.cat([roi_idx, prox_idx], dim=0)
+    atk_exists = torch.cat([roi_exists, prox_exists], dim=0)
 
     if R > 0:
         flip_mask, urgency = friendly_flip_targets(obs, garrison_status, H=H, prod=prod)
@@ -4883,7 +4894,7 @@ class ProducerLiteConfig:
     # --- NEW: Pipeline Switches ------------------------------------------
     enable_state_controller: bool = False     # Toggles dynamic config scaling based on ship-share
     enable_hybrid_select: bool = False        # Toggles multi-archetype rollout vs pure greedy
-    enable_dual_size_fleets: bool = True     # Toggles Sniper (exact) vs Doomstack (drain) dual-aiming
+    enable_dual_size_fleets: bool = False     # Toggles Sniper (exact) vs Doomstack (drain) dual-aiming
     
     beam_width: int = 3                     
     strategic_horizon: float = 45.0         
@@ -4962,7 +4973,7 @@ CONFIG_4P = dataclasses.replace(
     use_v7_ffa_tactics=True,                  # Toggle ON
     ffa_leader_attack_bonus=0.08,             # Hunt the point leader
     ffa_target_prod_bonus=0.15,               # Heavily weight high-yield planets
-    reinforce_margin_frac=0.25,               # Leaner reinforcement assumptions
+    reinforce_margin_frac=0.15,               # Leaner reinforcement assumptions
     comet_capture_min_hold=12.0,              # Stricter comet capture rules
 )
 
@@ -5482,8 +5493,8 @@ def plan_lite_waves(
     enemy_mass = cheap_enemy_pressure(obs, cache, horizon=float(K_eta), player_id=pid)  
 
     if config.enable_voronoi_features and voronoi_map is not None:
-        margin = voronoi_map["margin"]
-        border_pressure = (15.0 - margin).clamp(min=0.0) 
+        voronoi_margin = voronoi_map["margin"]  # distinct name
+        border_pressure = (15.0 - voronoi_margin).clamp(min=0.0)
         enemy_mass = enemy_mass + float(config.voronoi_border_focus) * border_pressure
 
     if bool(config.enable_potential_risk):
