@@ -8,11 +8,11 @@ from kaggle_environments import make
 # Configuration
 # ---------------------------------------------------------
 # Define our competitors - Update these paths as needed
-agent_baseline = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/FFAKing.py"
-agent_test = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/LyonelHybrid.py"
+agent_baseline = "/home/saksham/Documents/kaggle/OrbitWars/Final Agent/agent.py"
+agent_test = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/influenceAgent.py"
 
 # Number of unique map seeds to generate
-NUM_SEEDS = 15  # This will result in 10x 1v1s and 10x 4v4s due to swapping
+NUM_SEEDS = 50  # This will result in 10x 1v1s and 10x 4v4s due to swapping
 
 # Ensure replay directory exists
 os.makedirs("./replays", exist_ok=True)
