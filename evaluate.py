@@ -8,7 +8,7 @@ from kaggle_environments import make
 # Configuration
 # ---------------------------------------------------------
 # Define our competitors - Update these paths as needed
-agent_baseline = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/MultiAgent.py"
+agent_baseline = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/FFAKing.py"
 agent_test = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/LyonelHybrid.py"
 
 # Number of unique map seeds to generate

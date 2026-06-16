@@ -4168,7 +4168,7 @@ def build_target_shortlist(
 
         momentum_value = tgt_prod * post_capture_turns * swing_multiplier
         
-        # Base preference combining Momentum, Distance, Ship Cost, and Overkill
+        
         # Base preference combining Momentum, Distance, Ship Cost, and Overkill
         base_preference = ((momentum_value * float(config.roi_production_weight)) / safe_prox) - (tgt_ships_projected * 0.05) + surplus_value
         
@@ -4185,13 +4185,18 @@ def build_target_shortlist(
         territory_penalty = torch.where(is_deep_enemy, Voronoi_margin * float(config.voronoi_deep_enemy_penalty), 0.0)
                                         
     attack_pref = torch.where(attack_mask, base_preference + territory_penalty, torch.full_like(base_preference, float("-inf")))
-    # In build_target_shortlist, replace the single _candidate_indices call:
+
     n_roi = max(1, n_attack - max(1, n_attack // 3))      # ~2/3 by ROI/momentum  
-    n_prox = max(1, n_attack - n_roi)                      # ~1/3 by raw proximity
+    n_prox = max(1, n_attack - n_roi)                     # ~1/3 by raw proximity
 
     roi_idx, roi_exists = _candidate_indices(attack_pref, attack_mask, n_roi)
     prox_pref = torch.where(attack_mask, -proximity, torch.full_like(proximity, float("-inf")))
     prox_idx, prox_exists = _candidate_indices(prox_pref, attack_mask, n_prox)
+
+    # --- BUG FIX: Remove duplicates between ROI and Proximity shortlists ---
+    already_covered = (roi_idx.unsqueeze(1) == prox_idx.unsqueeze(0)).any(dim=0)
+    prox_idx = prox_idx[~already_covered]
+    prox_exists = prox_exists[~already_covered]
 
     atk_idx = torch.cat([roi_idx, prox_idx], dim=0)
     atk_exists = torch.cat([roi_exists, prox_exists], dim=0)
@@ -5607,6 +5612,41 @@ def plan_lite_waves(
         player_count=int(player_count), launches=launches, player_id=pid,
     )
     score = torch.where(cand_valid, score, torch.full_like(score, float("-inf")))
+
+    # =====================================================================
+    # NEW: EARLY TERMINATION AWARENESS (1v1 ONLY)
+    # =====================================================================
+    if int(player_count) == 2:
+        my_prod_now = prod[obs.owned & obs.alive].sum().to(dtype)
+        enemy_prod_now = prod[obs.is_enemy & obs.alive].sum().to(dtype)
+        my_ships_now = obs.ships[obs.owned & obs.alive].sum().to(dtype)
+        enemy_ships_now = obs.ships[obs.is_enemy & obs.alive].sum().to(dtype)
+        
+        my_et_score = float(EARLY_TERM_PROD_WEIGHT_2P) * my_prod_now + my_ships_now
+        enemy_et_score = float(EARLY_TERM_PROD_WEIGHT_2P) * enemy_prod_now + enemy_ships_now
+        
+        safe_enemy = max(float(enemy_et_score.item()), 1.0)
+        safe_mine = max(float(my_et_score.item()), 1.0)
+        
+        enemy_leading_ratio = float(enemy_et_score.item()) / safe_mine
+        we_leading_ratio = float(my_et_score.item()) / safe_enemy
+        
+        # When enemy is scoring better, heavily prioritize denying their production
+        if enemy_leading_ratio > 1.1:
+            urgency = (enemy_leading_ratio - 1.0) * float(EARLY_TERM_PROD_WEIGHT_2P)
+            # Boost score for candidates targeting enemy production planets
+            tgt_is_enemy = obs.is_enemy[cand_tgt_slot.clamp(0, P - 1)]
+            tgt_prod_val = prod[cand_tgt_slot.clamp(0, P - 1)].to(dtype)
+            et_bonus = urgency * tgt_prod_val * tgt_is_enemy.to(dtype)
+            score = score + et_bonus * cand_valid.to(dtype)
+            
+        # When we're leading on ET score, slight bonus for finishing quickly
+        # (capture production to extend the lead and trigger ET sooner)
+        elif we_leading_ratio > 1.3:
+            tgt_is_enemy = obs.is_enemy[cand_tgt_slot.clamp(0, P - 1)]
+            tgt_prod_val = prod[cand_tgt_slot.clamp(0, P - 1)].to(dtype)
+            push_bonus = (we_leading_ratio - 1.0) * tgt_prod_val * tgt_is_enemy.to(dtype)
+            score = score + push_bonus * cand_valid.to(dtype)
 
     # =====================================================================
     # NEW: FFA ANTI-LEADER & PROD SNIPING LOGIC
