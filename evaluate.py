@@ -8,11 +8,11 @@ from kaggle_environments import make
 # Configuration
 # ---------------------------------------------------------
 # Define our competitors - Update these paths as needed
-agent_baseline = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/FFAKing.py"
+agent_baseline = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/MultiAgent.py"
 agent_test = "/home/saksham/Documents/kaggle/OrbitWars/Experiments/LyonelHybrid.py"
 
 # Number of unique map seeds to generate
-NUM_SEEDS = 25  # This will result in 10x 1v1s and 10x 4v4s due to swapping
+NUM_SEEDS = 15  # This will result in 10x 1v1s and 10x 4v4s due to swapping
 
 # Ensure replay directory exists
 os.makedirs("./replays", exist_ok=True)
@@ -27,11 +27,11 @@ matches = []
 for seed in seeds:
     # 1v1: Swapped positions for absolute fairness
     matches.append({"mode": "1v1", "seed": seed, "agents": [agent_baseline, agent_test], "types": ["Baseline", "Test"]})
-    matches.append({"mode": "1v1", "seed": seed, "agents": [agent_test, agent_baseline], "types": ["Test", "Baseline"]})
+    # matches.append({"mode": "1v1", "seed": seed, "agents": [agent_test, agent_baseline], "types": ["Test", "Baseline"]})
     
     # 4v4: Swapped positions for FFA
     matches.append({"mode": "4v4", "seed": seed, "agents": [agent_baseline, agent_test, agent_baseline, agent_test], "types": ["Baseline", "Test", "Baseline", "Test"]})
-    matches.append({"mode": "4v4", "seed": seed, "agents": [agent_test, agent_baseline, agent_test, agent_baseline], "types": ["Test", "Baseline", "Test", "Baseline"]})
+    # matches.append({"mode": "4v4", "seed": seed, "agents": [agent_test, agent_baseline, agent_test, agent_baseline], "types": ["Test", "Baseline", "Test", "Baseline"]})
 
 # ---------------------------------------------------------
 # Tracking & Statistics

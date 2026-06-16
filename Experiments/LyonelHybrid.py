@@ -4127,7 +4127,6 @@ def build_target_shortlist(
 
     if config.enable_roi_targeting:
         tgt_prod = obs.prod.to(proximity.dtype)
-        tgt_ships = obs.ships.to(proximity.dtype)
         safe_prox = torch.clamp(proximity, min=1.0)
         
         # Terminal Momentum Estimator (Safe tensor extraction)
@@ -4138,18 +4137,40 @@ def build_target_shortlist(
         eta_approx = safe_prox / 4.0 
         post_capture_turns = (dynamic_horizon - eta_approx).clamp(min=0.0)
         
+        k_arrive = eta_approx.clamp(min=1.0, max=float(K_eta)).ceil().long()  # [P]
+        H_axis = int(garrison_status.ships.shape[-1])
+        k_arrive_safe = k_arrive.clamp(0, H_axis - 1)
+
+        tgt_ships_projected = garrison_status.ships.gather(
+            1, k_arrive_safe.unsqueeze(1)
+        ).squeeze(1).to(proximity.dtype)
+
         # Overkill reward math
         available_drain = obs.ships[source_mask].sum() 
-        projected_surplus = (available_drain - tgt_ships).clamp(min=0.0)
+        projected_surplus = (available_drain - tgt_ships_projected).clamp(min=0.0)
         surplus_value = projected_surplus * float(config.surplus_reward_weight)
         
         # Dynamic Swing Multiplier
-        swing_multiplier = torch.where(obs.is_enemy, float(config.enemy_swing_weight), 1.0).to(proximity.dtype)
+        if voronoi_map is not None:
+            voronoi_margin = voronoi_map["margin"]  # [P] positive = we control it
+            # For enemy planets: swing is high when we have Voronoi advantage (we'll hold it)
+            # and low when deep in enemy territory (we'll lose it soon after capturing)
+            hold_factor = (voronoi_margin / 5.0).clamp(0.0, 1.0)  # 0 = deep enemy, 1 = frontier/ours
+            # Neutral planets: swing is always 1.0 (no double-count)
+            # Enemy planets: swing scales from 1.0 (deep enemy) to enemy_swing_weight (frontier)
+            swing_multiplier = torch.where(
+                obs.is_enemy,
+                1.0 + (float(config.enemy_swing_weight) - 1.0) * hold_factor,
+                torch.ones_like(obs.is_enemy, dtype=proximity.dtype)
+            ).to(proximity.dtype)
+        else:
+            swing_multiplier = torch.where(obs.is_enemy, float(config.enemy_swing_weight), 1.0).to(proximity.dtype)
+
         momentum_value = tgt_prod * post_capture_turns * swing_multiplier
         
         # Base preference combining Momentum, Distance, Ship Cost, and Overkill
         # Base preference combining Momentum, Distance, Ship Cost, and Overkill
-        base_preference = ((momentum_value * float(config.roi_production_weight)) / safe_prox) - (tgt_ships * 0.05) + surplus_value
+        base_preference = ((momentum_value * float(config.roi_production_weight)) / safe_prox) - (tgt_ships_projected * 0.05) + surplus_value
         
         # --- BUG 1 FIXED: Add prod bonus ON TOP of ROI ---
         if getattr(config, "enable_prod_biased_shortlist", False):
@@ -4906,7 +4927,7 @@ class ProducerLiteConfig:
     enable_dual_size_fleets: bool = False     
     
     beam_width: int = 2                       # <-- FIXED: Dropped to 2 for performance (Full + Expand only)
-    strategic_horizon: float = 45.0        
+    strategic_horizon: float = 30.0        
     
     # --- NEW: FFA vs 1v1 Balancing Variables -----------------------------
     garrison_buffer_multiplier: float = 0.0  # How thick to leave the garrison (2.0 = safe)
@@ -4916,14 +4937,14 @@ class ProducerLiteConfig:
     # --- regroup  ------------------------------
     enable_regroup: bool = True
     max_regroup_time: float = 7.0
-    regroup_pressure_delta_min: float = 0.25
+    regroup_pressure_delta_min: float = 1.2
     max_regroup_sources_per_lane: int = 6
     max_regroup_targets_per_source: int = 7
     regroup_pressure_norm: str = "none"
     regroup_time_penalty_weight: float = 1e-3
 
     # --- potential-attack RISK_SCORE -----
-    enable_potential_risk: bool = True     
+    enable_potential_risk: bool = False     
     risk_blend_weight: float = 1.0          
     risk_enemy_prod_weight: float = 2.0     
     risk_self_prod_weight: float = 2.0      
@@ -4935,7 +4956,7 @@ class ProducerLiteConfig:
 
     # --- Voronoi Territorial Control ---
     enable_voronoi_features: bool = True
-    voronoi_deep_enemy_penalty: float = 0.6  
+    voronoi_deep_enemy_penalty: float = 2.0  
     voronoi_border_focus: float = 0.4        
 
     enable_roi_targeting: bool = True
@@ -4961,7 +4982,7 @@ class ProducerLiteConfig:
 
     # [v7-4] Production-Biased Shortlist (Ignores distance for high prod)
     enable_prod_biased_shortlist: bool = True
-    prod_target_bonus: float = 3.0
+    prod_target_bonus: float = 1.3
 
     # [v7-2] Staggered Pair Strikes (Optimized L=2 focus fire)
     enable_pair_strikes: bool = False
@@ -4979,7 +5000,7 @@ CONFIG_4P = dataclasses.replace(
     risk_blend_weight=0.5,                   
     max_strike_sources=3,                    
     enable_voronoi_features=True,
-    voronoi_deep_enemy_penalty=3.0,
+    voronoi_deep_enemy_penalty=5.0,
     voronoi_border_focus=2.0,
     roi_production_weight=10.0,
     
@@ -4997,12 +5018,16 @@ CONFIG_4P = dataclasses.replace(
     use_v7_ffa_tactics=True,                  # Toggle ON
     ffa_leader_attack_bonus=0.08,             # Hunt the point leader
     ffa_target_prod_bonus=0.15,               # Heavily weight high-yield planets
-    reinforce_margin_frac=0.15,               # Leaner reinforcement assumptions
+    reinforce_margin_frac=0.10,               # Leaner reinforcement assumptions
     comet_capture_min_hold=12.0,              # Stricter comet capture rules
 
     enable_adaptive_drain=True,
     enable_prod_biased_shortlist=True,
-    enable_pair_strikes = True
+    enable_pair_strikes = True,
+
+    beam_width = 3,
+    enable_potential_risk=True,
+    prod_target_bonus = 1.5
 )
 
 def _config_for_state(player_count: int, obs) -> ProducerLiteConfig:
@@ -5653,6 +5678,19 @@ def plan_lite_waves(
 
     # BUG 2 FIXED: Re-use the enemy_mass computed at the start of plan_lite_waves!
     # Eliminates PxP duplicate computation.
+    if garrison_status.arrivals_by_owner is not None:
+        A_owners = int(garrison_status.arrivals_by_owner.shape[-1])
+        # Look at next 4 turns for imminent arrivals  
+        imm_horizon = min(4, K_eta)
+        for a in range(A_owners):
+            if a != pid:
+                # arrivals_by_owner: [P, H+1, A] — k=0 is no-arrival frame; k=1..H are buckets
+                incoming_near = garrison_status.arrivals_by_owner[:, 1:imm_horizon+1, a]  # [P, imm]
+                # Weight by urgency: earlier arrivals are more critical
+                urgency_weights = torch.arange(imm_horizon, 0, -1,
+                                               dtype=enemy_mass.dtype, device=device).float()
+                weighted_threat = (incoming_near * urgency_weights.view(1, imm_horizon)).sum(dim=1)  # [P]
+                enemy_mass = enemy_mass + weighted_threat * 2.5  # Scale to match pressure magnitude
     
     regroup_entries = _plan_regroup(
         movement=movement, obs=obs, obs_tensors=obs_tensors, garrison_status=garrison_status,
