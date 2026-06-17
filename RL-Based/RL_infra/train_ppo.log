@@ -1,0 +1,9 @@
+10:29:27  INFO  Selected cuda:4  (47.1 GB free)
+10:29:28  INFO  Policy parameters: 105,218
+10:29:28  INFO  Collecting rollouts: T=64 × B=1024 = 65536 env-steps per update
+10:29:28  INFO  Resetting environments …
+10:29:44  INFO  Feature shape: (1024, 68, 12)
+10:29:47  INFO  started comet path generation pool with 8 workers
+10:31:27  INFO  Update    5/10000 | env-steps 327,680 | SPS 2459 (avg 3671) | pg -0.0002  vf 0.0128  ent 3.5877  clip 0.03 | ep_rew -0.145 | wall 102s
+10:34:13  INFO  Update   10/10000 | env-steps 655,360 | SPS 2009 (avg 2828) | pg -0.0006  vf 0.0051  ent 3.5338  clip 0.03 | ep_rew 0.029 | wall 268s
+10:37:04  INFO  Update   15/10000 | env-steps 983,040 | SPS 2004 (avg 2527) | pg -0.0001  vf 0.0053  ent 3.5373  clip 0.03 | ep_rew -0.196 | wall 440s
