@@ -7,3 +7,25 @@
 10:31:27  INFO  Update    5/10000 | env-steps 327,680 | SPS 2459 (avg 3671) | pg -0.0002  vf 0.0128  ent 3.5877  clip 0.03 | ep_rew -0.145 | wall 102s
 10:34:13  INFO  Update   10/10000 | env-steps 655,360 | SPS 2009 (avg 2828) | pg -0.0006  vf 0.0051  ent 3.5338  clip 0.03 | ep_rew 0.029 | wall 268s
 10:37:04  INFO  Update   15/10000 | env-steps 983,040 | SPS 2004 (avg 2527) | pg -0.0001  vf 0.0053  ent 3.5373  clip 0.03 | ep_rew -0.196 | wall 440s
+10:39:49  INFO  Update   20/10000 | env-steps 1,310,720 | SPS 1947 (avg 2393) | pg -0.0007  vf 0.0057  ent 3.5328  clip 0.03 | ep_rew -0.050 | wall 605s
+10:42:36  INFO  Update   25/10000 | env-steps 1,638,400 | SPS 2026 (avg 1970) | pg -0.0007  vf 0.0050  ent 3.5261  clip 0.03 | ep_rew -0.088 | wall 771s
+10:49:13  INFO  Update   30/10000 | env-steps 1,966,080 | SPS 687 (avg 1721) | pg -0.0005  vf 0.0047  ent 3.5120  clip 0.04 | ep_rew -0.077 | wall 1169s
+10:52:35  INFO  Update   35/10000 | env-steps 2,293,760 | SPS 1993 (avg 1702) | pg -0.0004  vf 0.0058  ent 3.4986  clip 0.04 | ep_rew -0.072 | wall 1371s
+10:55:17  INFO  Update   40/10000 | env-steps 2,621,440 | SPS 1999 (avg 1714) | pg -0.0010  vf 0.0051  ent 3.4946  clip 0.04 | ep_rew 0.009 | wall 1532s
+10:57:57  INFO  Update   45/10000 | env-steps 2,949,120 | SPS 1937 (avg 1731) | pg -0.0007  vf 0.0053  ent 3.5111  clip 0.03 | ep_rew -0.019 | wall 1693s
+11:00:47  INFO  Update   50/10000 | env-steps 3,276,800 | SPS 1983 (avg 1968) | pg -0.0006  vf 0.0052  ent 3.4837  clip 0.04 | ep_rew -0.150 | wall 1862s
+11:00:47  INFO  Saved checkpoint → checkpoints/policy_3276800.pt
+11:03:21  INFO  Update   55/10000 | env-steps 3,604,480 | SPS 2210 (avg 2037) | pg -0.0006  vf 0.0047  ent 3.4918  clip 0.04 | ep_rew 0.021 | wall 2017s
+11:06:04  INFO  Update   60/10000 | env-steps 3,932,160 | SPS 2073 (avg 2032) | pg -0.0010  vf 0.0045  ent 3.5014  clip 0.04 | ep_rew -0.043 | wall 2179s
+11:08:47  INFO  Update   65/10000 | env-steps 4,259,840 | SPS 2041 (avg 2025) | pg -0.0011  vf 0.0052  ent 3.4992  clip 0.04 | ep_rew -0.032 | wall 2343s
+11:11:24  INFO  Update   70/10000 | env-steps 4,587,520 | SPS 2102 (avg 2063) | pg -0.0007  vf 0.0045  ent 3.4887  clip 0.03 | ep_rew -0.052 | wall 2500s
+11:14:04  INFO  Update   75/10000 | env-steps 4,915,200 | SPS 2101 (avg 2046) | pg -0.0005  vf 0.0046  ent 3.4868  clip 0.05 | ep_rew 0.015 | wall 2659s
+11:16:42  INFO  Update   80/10000 | env-steps 5,242,880 | SPS 2053 (avg 2059) | pg -0.0011  vf 0.0049  ent 3.5130  clip 0.04 | ep_rew -0.079 | wall 2818s
+11:19:15  INFO  Update   85/10000 | env-steps 5,570,560 | SPS 1947 (avg 2094) | pg -0.0010  vf 0.0049  ent 3.4991  clip 0.04 | ep_rew -0.095 | wall 2970s
+11:21:49  INFO  Update   90/10000 | env-steps 5,898,240 | SPS 2196 (avg 2106) | pg -0.0008  vf 0.0045  ent 3.4904  clip 0.04 | ep_rew 0.084 | wall 3124s
+11:27:48  INFO  Update   95/10000 | env-steps 6,225,920 | SPS 723 (avg 1864) | pg -0.0003  vf 0.0045  ent 3.5074  clip 0.04 | ep_rew 0.015 | wall 3484s
+11:36:17  INFO  Update  100/10000 | env-steps 6,553,600 | SPS 766 (avg 1521) | pg -0.0010  vf 0.0047  ent 3.4713  clip 0.05 | ep_rew -0.090 | wall 3993s
+11:36:17  INFO  Saved checkpoint → checkpoints/policy_6553600.pt
+11:42:21  INFO  Update  105/10000 | env-steps 6,881,280 | SPS 1743 (avg 1240) | pg -0.0003  vf 0.0042  ent 3.4631  clip 0.05 | ep_rew 0.132 | wall 4357s
+11:46:28  INFO  Update  110/10000 | env-steps 7,208,960 | SPS 576 (avg 1131) | pg -0.0005  vf 0.0047  ent 3.4503  clip 0.05 | ep_rew 0.068 | wall 4603s
+11:54:37  INFO  Update  115/10000 | env-steps 7,536,640 | SPS 635 (avg 1025) | pg -0.0008  vf 0.0051  ent 3.4486  clip 0.06 | ep_rew 0.061 | wall 5093s
