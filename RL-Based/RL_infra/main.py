@@ -8,17 +8,23 @@ from interfaces import DecisionBatch
 from rl_bridge import RLPolicyInput
 
 # Import parsing logic from your rule-based agent
-from anotherAgent import single_obs_to_tensor, parse_obs, CENTER, ROT_RADIUS_LIMIT
+from RuleAgent import single_obs_to_tensor, parse_obs, CENTER, ROT_RADIUS_LIMIT
 
 # ---------------------------------------------------------
-# 1. Global Model Initialization
-# We load the model once when the script starts to avoid 
-# loading overhead on every single turn (which causes timeouts).
+# Dynamic Device Selection
+# Automatically routes to cuda:4 on the big rig, cuda:0 on 
+# local laptops, or CPU if no GPU is found.
 # ---------------------------------------------------------
-device = torch.device("cuda:4" if torch.cuda.is_available() else "cpu")
+if torch.cuda.is_available():
+    if torch.cuda.device_count() > 4:
+        device = torch.device("cuda:4")
+    else:
+        device = torch.device("cuda:0")
+else:
+    device = torch.device("cpu")
 
 # --- UPDATE THIS TO YOUR LATEST CHECKPOINT ---
-CHECKPOINT_PATH = "/usershome/cs671_user11/OrbitWars/RL-Based/RL_infra/checkpoints/policy_6553600.pt" 
+CHECKPOINT_PATH = "/home/saksham/Documents/kaggle/OrbitWars/RL-Based/RL_infra/checkpoints/policy_6553600.pt" 
 
 policy = OrbitWarsPolicy(feat_dim=12, d_model=64, n_heads=4, n_layers=2).to(device)
 
@@ -53,17 +59,10 @@ def agent(obs):
     if isinstance(obs, dict) and "initial_planets" not in obs:
         obs["initial_planets"] = _initial_planets_cache
 
-    # 2. Convert raw obs to tensors
+    # 2. Convert raw obs to UNBATCHED tensors [P, 7]
     obs_tensors = single_obs_to_tensor(obs, player_id=player_id, device=device)
-    
-    # Add a dummy batch dimension (B=1) because the Network expects batches
-    for k, v in obs_tensors.items():
-        if isinstance(v, torch.Tensor) and v.dim() > 0:
-            obs_tensors[k] = v.unsqueeze(0)
-        elif isinstance(v, torch.Tensor): # Catch scalars
-            obs_tensors[k] = v.unsqueeze(0)
 
-    # 3. Extract exact RL features using your parser
+    # 3. Extract exact RL features using your parser (WORKS ON 2D)
     parsed = parse_obs(obs_tensors, player_id=player_id)
     
     is_mine = parsed.owned.float()
@@ -83,8 +82,8 @@ def agent(obs):
     
     dist_sun_norm = (parsed.orb_r / float(ROT_RADIUS_LIMIT)).clamp(max=1.0)
     
-    # Stack into [1, P, 12] exactly as trained
-    features = torch.stack([
+    # Stack into [P, 12]
+    features_2d = torch.stack([
         is_mine, is_enemy, is_neutral,
         ships_norm, prod_norm, dist_sun_norm,
         torch.sin(cur_angle), torch.cos(cur_angle),
@@ -92,8 +91,11 @@ def agent(obs):
         parsed.is_orbiting.float(), parsed.alive.float()
     ], dim=-1)
 
-    # 4. Wrap into a DecisionBatch
-    inp = RLPolicyInput(features=features, alive_mask=parsed.alive)
+    # 4. Add the dummy batch dimension ONLY for the network -> [1, P, 12]
+    features = features_2d.unsqueeze(0)
+    alive_mask_batched = parsed.alive.unsqueeze(0)
+
+    inp = RLPolicyInput(features=features, alive_mask=alive_mask_batched)
     batch = DecisionBatch(
         policy_input=inp,
         env_index=torch.zeros(1, dtype=torch.long, device=device),
@@ -110,19 +112,20 @@ def agent(obs):
     # 6. Decode the target index into Kaggle's Move format
     moves = []
     
-    my_mask = parsed.owned.squeeze(0) & parsed.alive.squeeze(0)
+    # Notice we don't need to squeeze(0) here because parsed is already 2D
+    my_mask = parsed.owned & parsed.alive
     if my_mask.any():
-        my_ships = parsed.ships.squeeze(0).masked_fill(~my_mask, -1.0)
+        my_ships = parsed.ships.masked_fill(~my_mask, -1.0)
         best_src = my_ships.argmax() # Pick owned planet with the most ships
         
         # Extract coordinates and actual planet ID
-        src_x = parsed.x.squeeze(0)[best_src]
-        src_y = parsed.y.squeeze(0)[best_src]
-        tgt_x = parsed.x.squeeze(0)[target_idx]
-        tgt_y = parsed.y.squeeze(0)[target_idx]
+        src_x = parsed.x[best_src]
+        src_y = parsed.y[best_src]
+        tgt_x = parsed.x[target_idx]
+        tgt_y = parsed.y[target_idx]
         
-        src_id = int(obs_tensors["planets"].squeeze(0)[best_src, 0].item())
-        ships_avail = float(parsed.ships.squeeze(0)[best_src].item())
+        src_id = int(obs_tensors["planets"][best_src, 0].item())
+        ships_avail = float(parsed.ships[best_src].item())
         
         # Send 55% of the garrison (mirroring how it was trained)
         n_send = int(math.floor(ships_avail * 0.55))
