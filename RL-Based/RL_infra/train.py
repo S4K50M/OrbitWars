@@ -24,12 +24,6 @@ import json
 import logging
 from pathlib import Path
 
-# Fragmentation fix for large batch attention
-os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
-
-import torch
-import torch.nn as nn
-
 # Make RL_infra importable when run from project root
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -51,24 +45,31 @@ logging.basicConfig(
 log = logging.getLogger("train")
 
 
+## Fragmentation fix for large batch attention
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:256"
+
+import torch
+import torch.nn as nn
+# ... (rest of imports)
+
 # ── Hyper-parameters ────────────────────────────────────────────────────────
 
 NUM_ENVS          = 1024
 NUM_AGENTS        = 2
-ROLLOUT_STEPS     = 64        # steps per update (64 × 1024 = 65536 env-steps)
+ROLLOUT_STEPS     = 128       # steps per update (128 × 1024 = 131,072 env-steps)
 TOTAL_UPDATES     = 10_000    # training budget
-FEAT_DIM          = 12        # must match OrbitWarsEncoder output
-D_MODEL           = 64        # 128 → 64 to avoid OOM with B=1024, P=68
+FEAT_DIM          = 14        # updated to match new encoder
+D_MODEL           = 96        # bumped capacity
 N_HEADS           = 4
-N_LAYERS          = 2         # 3 → 2 layers
+N_LAYERS          = 3         # bumped capacity
 
-LR                = 3e-4
+LR                = 3e-5      # Lowered for stable transformer learning
 CLIP_EPS          = 0.2
 VF_COEF           = 0.5
-ENT_COEF          = 0.01
-MAX_GRAD_NORM     = 0.5
-N_EPOCHS          = 4
-MINIBATCH_ENVS    = 4096      # flat rows per PPO minibatch (< 65535 SDPA limit)
+ENT_COEF          = 0.005      # Increased to encourage more exploration
+MAX_GRAD_NORM     = 1.0       # Increased gradient allowance
+N_EPOCHS          = 1         # Prevents severe overfitting on the same data
+MINIBATCH_ENVS    = 2048      # Adapted for N_EPOCHS=1
 
 GAMMA             = 0.99
 GAE_LAMBDA        = 0.95
@@ -77,6 +78,7 @@ CHECKPOINT_DIR    = Path("checkpoints")
 CHECKPOINT_EVERY  = 50        # updates
 LOG_EVERY         = 5         # updates
 OPPONENT_WORKERS  = 16
+
 
 
 def pick_device() -> torch.device:
@@ -134,6 +136,7 @@ def collect_rollout(
 
     obs_feat   = torch.zeros(rollout_steps, B, P, feat_dim, device=device)
     obs_alive  = torch.zeros(rollout_steps, B, P, dtype=torch.bool, device=device)
+    obs_is_mine = torch.zeros(rollout_steps, B, P, dtype=torch.bool, device=device)
     actions    = torch.zeros(rollout_steps, B, dtype=torch.long, device=device)
     log_probs  = torch.zeros(rollout_steps, B, device=device)
     values     = torch.zeros(rollout_steps, B, device=device)
@@ -146,6 +149,7 @@ def collect_rollout(
         inp: RLPolicyInput = batch.policy_input
         obs_feat[t]  = inp.features
         obs_alive[t] = inp.alive_mask
+        obs_is_mine[t] = inp.is_mine_mask
 
         out = policy(batch)
         dist = torch.distributions.Categorical(logits=out.target_logits)
@@ -172,6 +176,7 @@ def collect_rollout(
     buf = RolloutBuffer(
         obs_features=obs_feat,
         obs_alive=obs_alive,
+        obs_is_mine=obs_is_mine,
         actions=actions,
         log_probs=log_probs,
         values=values,
@@ -186,6 +191,9 @@ def main():
     device  = pick_device()
     env     = make_env(device)
     policy  = make_policy(device)
+
+    policy = torch.compile(policy, mode="reduce-overhead")
+
     trainer = PPOTrainer(
         policy=policy,
         lr=LR,
@@ -243,16 +251,21 @@ def main():
             sps_window.pop(0)
         smoothed_sps = sum(sps_window) / len(sps_window)
 
+        if update % 100 == 0:
+            import gc
+            gc.collect()
+            torch.cuda.empty_cache()
+
         if update % LOG_EVERY == 0:
             wall = time.perf_counter() - t_start
             log.info(
                 "Update %4d/%d | env-steps %s | SPS %.0f (avg %.0f) | "
-                "pg %.4f  vf %.4f  ent %.4f  clip %.2f | ep_rew %.3f | wall %s",
+                "pg %.4f  vf %.4f  ent %.4f  clip %.2f  ev %.3f | ep_rew %.3f | wall %s",
                 update, TOTAL_UPDATES,
                 f"{total_env_steps:,}",
                 sps, smoothed_sps,
                 metrics["pg"], metrics["vf"], metrics["ent"], metrics["clip_frac"],
-                ep_rew,
+                metrics["explained_var"], ep_rew,
                 f"{wall:.0f}s",
             )
 

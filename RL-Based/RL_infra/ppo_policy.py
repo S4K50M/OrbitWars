@@ -50,14 +50,12 @@ class _PlanetLayer(nn.Module):
 
 
 class OrbitWarsPolicy(Policy):
-    """Planet-attention policy: one action = choose a target planet."""
-
     def __init__(
         self,
-        feat_dim: int = 12,
-        d_model: int = 128,
+        feat_dim: int = 14,        # updated from 12
+        d_model: int = 96,         # bump from 64
         n_heads: int = 4,
-        n_layers: int = 3,
+        n_layers: int = 3,         # restore to 3 layers
         d_ff: int = 256,
         dropout: float = 0.1,
     ):
@@ -70,39 +68,72 @@ class OrbitWarsPolicy(Policy):
         self.layers = nn.ModuleList(
             [_PlanetLayer(d_model, n_heads, d_ff, dropout) for _ in range(n_layers)]
         )
-        self.action_head = nn.Linear(d_model, 1)
+
+        # Source-Target bilinear attention
+        # Q = source embedding (launches FROM here), K = target embedding (launches TO here)
+        d_pair = d_model // 2
+        self.src_proj = nn.Linear(d_model, d_pair)
+        self.tgt_proj = nn.Linear(d_model, d_pair)
+        self._pair_scale = math.sqrt(d_pair)
+
+        # Value head
         self.value_head = nn.Sequential(
             nn.Linear(d_model, d_model), nn.GELU(), nn.Linear(d_model, 1)
         )
 
     def forward(self, batch: DecisionBatch) -> PolicyOutput:
-        inp = batch.policy_input          # RLPolicyInput
-        x = inp.features                  # [B, P, feat_dim]
-        alive = inp.alive_mask            # [B, P] bool
+        inp = batch.policy_input
+        x     = inp.features       # [B, P, feat_dim]
+        alive = inp.alive_mask     # [B, P] bool
+        is_mine = inp.is_mine_mask # [B, P] bool
 
-        x = self.input_proj(x)            # [B, P, d_model]
-        pad_mask = ~alive                 # MHA: True = ignore
+        B, P, _ = x.shape
+
+        x = self.input_proj(x)
+        pad_mask = ~alive
         for layer in self.layers:
             x = layer(x, pad_mask)
 
-        # Action logits [B, P] — mask dead slots
-        logits = self.action_head(x).squeeze(-1)
-        logits = logits.masked_fill(~alive, float("-inf"))
+        # ── Source-Target pair logits ──────────────────────────────────
+        q = self.src_proj(x)   # [B, P, d_pair]  — source side
+        k = self.tgt_proj(x)   # [B, P, d_pair]  — target side
+        pair_logits = torch.bmm(q, k.transpose(1, 2)) / self._pair_scale  # [B, P, P]
 
-        # Value: mean-pool over alive planets
-        alive_f = alive.float().unsqueeze(-1)         # [B, P, 1]
+        # Valid pair mask:
+        #   Row (source): must be alive and owned by learner
+        #   Col (target): must be alive and NOT owned (attack/capture)
+        #   Diagonal: source ≠ target
+        src_ok  = is_mine.unsqueeze(2).expand_as(pair_logits)          # [B, P, P]
+        tgt_ok  = (~is_mine & alive).unsqueeze(1).expand_as(pair_logits) # [B, P, P]
+        eye_mask = torch.eye(P, device=x.device, dtype=torch.bool).unsqueeze(0)
+
+        valid = src_ok & tgt_ok & ~eye_mask
+        pair_logits = pair_logits.masked_fill(~valid, float("-inf"))
+
+        # Safety fallback if an env has NO valid pairs
+        has_valid = valid.any(dim=(1, 2))  # [B]
+        flat_logits = pair_logits.view(B, P * P)
+        fallback = alive.unsqueeze(1).expand(B, P, P).reshape(B, P * P).float()
+        flat_logits = torch.where(
+            has_valid.view(B, 1).expand_as(flat_logits),
+            flat_logits,
+            fallback 
+        )
+
+        # ── Value head ─────────────────────────────────────────────────
+        alive_f = alive.float().unsqueeze(-1)
         pooled = (x * alive_f).sum(1) / alive_f.sum(1).clamp(min=1.0)
-        value = self.value_head(pooled).squeeze(-1)   # [B]
+        value = self.value_head(pooled).squeeze(-1)
 
-        return PolicyOutput(target_logits=logits, value=value)
-
-
+        return PolicyOutput(target_logits=flat_logits, value=value)
+        
 # ── Rollout buffer ──────────────────────────────────────────────────────────
 
 @dataclass
 class RolloutBuffer:
     obs_features: Tensor   # [T, B, P, feat_dim]
     obs_alive: Tensor      # [T, B, P]
+    obs_is_mine: Tensor    # [T, B, P]
     actions: Tensor        # [T, B]
     log_probs: Tensor      # [T, B]
     values: Tensor         # [T, B]
@@ -136,7 +167,6 @@ def compute_gae(
         gae = delta + gamma * lam * nd * gae
         advantages[t] = gae
     return advantages, advantages + values
-
 
 # ── PPO Trainer ─────────────────────────────────────────────────────────────
 
@@ -188,18 +218,28 @@ class PPOTrainer:
         )
         adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
+        # ── ADD EXPLAINED VARIANCE TRACKING ──
+        with torch.no_grad():
+            ret_flat = ret.view(-1)
+            val_flat = buf.values.view(-1)
+            var_ret = ret_flat.var().item()
+            var_res = (ret_flat - val_flat).var().item()
+            ev = max(0.0, 1.0 - var_res / (var_ret + 1e-8))
+        # ─────────────────────────────────────
+
         # Flatten T×B → N, keep P dim
         P = buf.obs_features.shape[2]
         feat_dim = buf.obs_features.shape[3]
         N = T * B
         feat = buf.obs_features.view(N, P, feat_dim)
         alive = buf.obs_alive.view(N, P)
+        is_mine = buf.obs_is_mine.view(N, P)
         acts = buf.actions.view(N)
         olp = buf.log_probs.view(N)
         ret_f = ret.view(N)
         adv_f = adv.view(N)
 
-        metrics = dict(pg=0.0, vf=0.0, ent=0.0, clip_frac=0.0)
+        metrics = dict(pg=0.0, vf=0.0, ent=0.0, clip_frac=0.0, explained_var=ev)
         mb = self.minibatch_envs  # rows per PPO minibatch (N flattened)
         n_updates = 0
 
@@ -209,6 +249,7 @@ class PPOTrainer:
                 idx = perm[start : start + mb]
                 mb_feat = feat[idx]
                 mb_alive = alive[idx]
+                mb_is_mine = is_mine[idx]
                 mb_acts = acts[idx]
                 mb_olp = olp[idx]
                 mb_ret = ret_f[idx]
@@ -216,7 +257,7 @@ class PPOTrainer:
 
                 from rl_bridge import RLPolicyInput
 
-                inp = RLPolicyInput(features=mb_feat, alive_mask=mb_alive)
+                inp = RLPolicyInput(features=mb_feat, alive_mask=mb_alive, is_mine_mask=mb_is_mine)
                 mb_B = len(idx)
                 mb_batch = DecisionBatch(
                     policy_input=inp,
