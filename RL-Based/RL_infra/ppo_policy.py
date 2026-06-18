@@ -133,7 +133,6 @@ class OrbitWarsPolicy(Policy):
 class RolloutBuffer:
     obs_features: Tensor   # [T, B, P, feat_dim]
     obs_alive: Tensor      # [T, B, P]
-    obs_is_mine: Tensor    # [T, B, P]
     actions: Tensor        # [T, B]
     log_probs: Tensor      # [T, B]
     values: Tensor         # [T, B]
@@ -233,7 +232,6 @@ class PPOTrainer:
         N = T * B
         feat = buf.obs_features.view(N, P, feat_dim)
         alive = buf.obs_alive.view(N, P)
-        is_mine = buf.obs_is_mine.view(N, P)
         acts = buf.actions.view(N)
         olp = buf.log_probs.view(N)
         ret_f = ret.view(N)
@@ -249,7 +247,6 @@ class PPOTrainer:
                 idx = perm[start : start + mb]
                 mb_feat = feat[idx]
                 mb_alive = alive[idx]
-                mb_is_mine = is_mine[idx]
                 mb_acts = acts[idx]
                 mb_olp = olp[idx]
                 mb_ret = ret_f[idx]
@@ -257,8 +254,16 @@ class PPOTrainer:
 
                 from rl_bridge import RLPolicyInput
 
-                inp = RLPolicyInput(features=mb_feat, alive_mask=mb_alive, is_mine_mask=mb_is_mine)
+                # Reconstruct is_mine from the 0th feature index natively
+                mb_is_mine = mb_feat[:, :, 0].bool()
+
+                inp = RLPolicyInput(
+                    features=mb_feat, 
+                    alive_mask=mb_alive, 
+                    is_mine_mask=mb_is_mine
+                )
                 mb_B = len(idx)
+                
                 mb_batch = DecisionBatch(
                     policy_input=inp,
                     env_index=torch.arange(mb_B, device=self.device),

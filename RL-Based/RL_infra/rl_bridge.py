@@ -16,6 +16,9 @@ from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
+import copy
+from torch.distributions import Categorical
+
 import torch
 from torch import Tensor
 
@@ -45,7 +48,7 @@ def _encode_features(
     engine: TorchOrbitWarsEnv,
     player_per_env: Tensor,
 ) -> RLPolicyInput:
-    """Fully batched 14-feature planet encoder."""
+    """Fully batched 16-feature planet encoder."""
     B, P = engine.B, engine.P
     device = engine.device
     ft = engine.dtype
@@ -82,18 +85,24 @@ def _encode_features(
     dy = py - CENTER
     cur_angle = torch.atan2(dy, dx)
     
-    # ── NEW FEATURES (13 & 14): Reachability & Proximity ──
-    dx_all = px.unsqueeze(2) - px.unsqueeze(1)   # [B, P, P]
+    # Reachability & Proximity
+    dx_all = px.unsqueeze(2) - px.unsqueeze(1)
     dy_all = py.unsqueeze(2) - py.unsqueeze(1)
-    dist_all = torch.sqrt((dx_all**2 + dy_all**2).clamp(min=0))  # [B, P, P]
+    dist_all = torch.sqrt((dx_all**2 + dy_all**2).clamp(min=0))
     INF = 999.0
     
-    # Distance to nearest owned planet
     owned_dist = dist_all.masked_fill(~is_mine.unsqueeze(2).expand_as(dist_all), INF)
-    dist_nearest_owned = owned_dist.amin(dim=1)  # [B, P]
+    dist_nearest_owned = owned_dist.amin(dim=1)
     
-    reachable = (dist_nearest_owned < 35.0).to(ft)  # ~15 turns at speed 2.3
+    reachable = (dist_nearest_owned < 35.0).to(ft)
     dist_nearest_norm = (dist_nearest_owned / 70.0).clamp(max=1.0)
+
+    # ── NEW FEATURES (15 & 16): Global Game Phase & Economy ──
+    step_norm = (engine.step_count.to(ft) / 500.0).view(B, 1).expand(B, P)
+    
+    total_prod = prod.sum(dim=1, keepdim=True).clamp(min=1.0)
+    my_prod    = (prod * is_mine.to(ft)).sum(dim=1, keepdim=True)
+    prod_ratio = (my_prod / total_prod).expand(B, P)
 
     features = torch.stack([
         is_mine.to(ft), is_enemy, is_neutral,
@@ -101,15 +110,50 @@ def _encode_features(
         torch.sin(cur_angle), torch.cos(cur_angle),
         torch.sin(orb_a0), torch.cos(orb_a0),
         is_orb, alive.to(ft),
-        reachable, dist_nearest_norm
-    ], dim=-1)   # [B, P, 14]
+        reachable, dist_nearest_norm,
+        step_norm, prod_ratio # <--- Added here
+    ], dim=-1)   # [B, P, 16]
 
     return RLPolicyInput(features=features, alive_mask=alive, is_mine_mask=is_mine)
 
+_FLEET_SPEED = 2.3   # approximate; close enough for decoder aiming
+
+def _intercept_angle(
+    src_x:   Tensor,   # [B]
+    src_y:   Tensor,   # [B]
+    tgt_x:   Tensor,   # [B] current position
+    tgt_y:   Tensor,   # [B]
+    meta:    dict,
+    tgt_idx: Tensor,   # [B] planet index
+) -> Tensor:           # [B] angle in radians
+    """
+    For orbiting targets: lead the planet to where it will be when
+    the fleet arrives. One iteration of linear approximation.
+    For static targets: direct angle.
+    """
+    orb_r     = meta["planet_orb_r"]       # [B, P]
+    cur_angle = meta["planet_cur_angle"]   # [B, P]
+    ang_vel   = meta["angular_velocity"]   # [B]
+
+    tgt_orb_r = orb_r.gather(1,     tgt_idx.unsqueeze(1)).squeeze(1)   # [B]
+    tgt_cur_a = cur_angle.gather(1,  tgt_idx.unsqueeze(1)).squeeze(1)  # [B]
+
+    dx   = tgt_x - src_x
+    dy   = tgt_y - src_y
+    dist = (dx * dx + dy * dy).sqrt().clamp(min=1e-3)
+    t_est = dist / _FLEET_SPEED
+
+    future_a = tgt_cur_a + ang_vel * t_est
+    future_x = CENTER + tgt_orb_r * torch.cos(future_a)
+    future_y = CENTER + tgt_orb_r * torch.sin(future_a)
+
+    intercept = torch.atan2(future_y - src_y, future_x - src_x)
+    direct    = torch.atan2(dy, dx)
+
+    is_orbiting = (tgt_orb_r > 2.0)
+    return torch.where(is_orbiting, intercept, direct)
 
 class OrbitWarsEncoder(ObservationEncoder):
-    """12-feature planet encoder + planet-to-planet action decoder."""
-
     def __init__(self, movement_horizon: int = 15):
         self.horizon = movement_horizon
 
@@ -121,15 +165,26 @@ class OrbitWarsEncoder(ObservationEncoder):
 
         inp = _encode_features(engine, player_per_env)
 
-        # Snapshot coords for decode (cheap — stays on GPU)
+        # ── NEW: Orbital info for intercept angle ──
+        dx0 = engine.planet_initial_x - CENTER
+        dy0 = engine.planet_initial_y - CENTER
+        orb_r     = torch.sqrt(dx0 * dx0 + dy0 * dy0)
+        cur_angle = torch.atan2(
+            engine.planet_y - CENTER,
+            engine.planet_x - CENTER,
+        )
+
         meta = {
-            "planet_x":     engine.planet_x.clone(),
-            "planet_y":     engine.planet_y.clone(),
-            "planet_owner": engine.planet_owner.clone(),
-            "planet_ships": engine.planet_ships.clone(),
-            "planet_id":    engine.planet_id.clone(),    # needed for move encoding
-            "planet_alive": (engine.planet_id >= 0),
+            "planet_x":       engine.planet_x.clone(),
+            "planet_y":       engine.planet_y.clone(),
+            "planet_owner":   engine.planet_owner.clone(),
+            "planet_ships":   engine.planet_ships.clone(),
+            "planet_id":      engine.planet_id.clone(),
+            "planet_alive":   (engine.planet_id >= 0),
             "player_per_env": player_per_env.clone(),
+            "planet_orb_r":      orb_r.clone(),
+            "planet_cur_angle":  cur_angle.clone(),
+            "angular_velocity":  engine.angular_velocity.clone(),
         }
 
         return DecisionBatch(
@@ -145,69 +200,102 @@ class OrbitWarsEncoder(ObservationEncoder):
         target_index: Tensor,
         num_envs: int,
     ) -> list[list[Move]]:
-        """
-        Unpack flat (src_idx * P + tgt_idx) action → Move list.
-        Sends 75% of source ships toward the target (min 5 ships).
-        """
+        SECONDARY_MIN_SHIPS = 15
+        SECONDARY_SEND_FRAC = 0.70
+
         meta   = batch.metadata
-        px     = meta["planet_x"]        # [B, P]
+        px     = meta["planet_x"]
         py     = meta["planet_y"]
-        owner  = meta["planet_owner"]    # [B, P] int64
-        ships  = meta["planet_ships"]    # [B, P] int64
-        pids   = meta["planet_id"]       # [B, P] int64
-        alive  = meta["planet_alive"]    # [B, P] bool
-        seats  = meta["player_per_env"]  # [B]    int64
+        owner  = meta["planet_owner"]
+        ships  = meta["planet_ships"]
+        pids   = meta["planet_id"]
+        alive  = meta["planet_alive"]
+        seats  = meta["player_per_env"]
         B, P   = px.shape
 
-        # ── Unpack flat action ────────────────────────────────────────────
-        flat = target_index.clamp(0, P * P - 1)
-        src_idx = flat // P    # [B]
-        tgt_idx = flat % P     # [B]
+        # ── Unpack flat (src * P + tgt) action ──────────────────────────
+        flat    = target_index.clamp(0, P * P - 1)
+        src_idx = (flat // P).clamp(0, P - 1)
+        tgt_idx = (flat %  P).clamp(0, P - 1)
 
-        src_idx = src_idx.clamp(0, P - 1)
-        tgt_idx = tgt_idx.clamp(0, P - 1)
+        src_pid   = pids.gather(1,  src_idx.unsqueeze(1)).squeeze(1)
+        src_ships = ships.gather(1, src_idx.unsqueeze(1)).squeeze(1)
+        src_x     = px.gather(1,   src_idx.unsqueeze(1)).squeeze(1)
+        src_y     = py.gather(1,   src_idx.unsqueeze(1)).squeeze(1)
+        src_own   = owner.gather(1, src_idx.unsqueeze(1)).squeeze(1)
 
-        # ── Source properties ─────────────────────────────────────────────
-        src_pid  = pids.gather(1, src_idx.unsqueeze(1)).squeeze(1)   # [B]
-        src_ships = ships.gather(1, src_idx.unsqueeze(1)).squeeze(1) # [B]
-        src_x    = px.gather(1, src_idx.unsqueeze(1)).squeeze(1)
-        src_y    = py.gather(1, src_idx.unsqueeze(1)).squeeze(1)
-        src_own  = owner.gather(1, src_idx.unsqueeze(1)).squeeze(1)  # [B]
+        tgt_x   = px.gather(1,    tgt_idx.unsqueeze(1)).squeeze(1)
+        tgt_y   = py.gather(1,    tgt_idx.unsqueeze(1)).squeeze(1)
+        tgt_own = owner.gather(1, tgt_idx.unsqueeze(1)).squeeze(1)
 
-        # ── Target properties ─────────────────────────────────────────────
-        tgt_x = px.gather(1, tgt_idx.unsqueeze(1)).squeeze(1)
-        tgt_y = py.gather(1, tgt_idx.unsqueeze(1)).squeeze(1)
-        tgt_own = owner.gather(1, tgt_idx.unsqueeze(1)).squeeze(1)   # [B]
-
-        # ── Angle: direct aim (engine handles orbital lead for us) ────────
-        angle = torch.atan2(tgt_y - src_y, tgt_x - src_x)
-
-        # ── Ship count: 75% of source ships, minimum 5 ───────────────────
+        # ── Intercept angle (primary) ────────────────────────────────────
+        angle  = _intercept_angle(src_x, src_y, tgt_x, tgt_y, meta, tgt_idx)
         n_send = (src_ships.float() * 0.75).floor().long()
 
-        # ── Validity ──────────────────────────────────────────────────────
-        src_is_mine = (src_own == seats)               # source is owned by learner
-        tgt_is_enemy = (tgt_own != seats)              # target is NOT ours (Neutral or Enemy)
-        tgt_is_alive = alive.gather(1, tgt_idx.unsqueeze(1)).squeeze(1)
-        has_ships = (n_send >= 5)
-        not_same = (src_idx != tgt_idx)
+        src_is_mine  = (src_own == seats)
+        tgt_not_mine = (tgt_own != seats)
+        tgt_alive    = alive.gather(1, tgt_idx.unsqueeze(1)).squeeze(1)
+        
+        primary_valid = (
+            src_is_mine & tgt_not_mine & tgt_alive &
+            (n_send >= 5) & (src_idx != tgt_idx)
+        )
 
-        valid = src_is_mine & tgt_is_enemy & tgt_is_alive & has_ships & not_same
+        # ── Secondary sources ────────────────────────────────────────────
+        is_mine_mat = alive & (owner == seats.unsqueeze(1))   # [B, P]
+        pri_hot = torch.zeros(B, P, dtype=torch.bool, device=px.device)
+        pri_hot.scatter_(1, src_idx.unsqueeze(1), True)
 
-        # ── CPU transfer (single call) ────────────────────────────────────
-        valid_cpu   = valid.cpu().tolist()
-        src_pid_cpu = src_pid.cpu().tolist()
-        angle_cpu   = angle.cpu().tolist()
-        n_send_cpu  = n_send.cpu().tolist()
+        sec_eligible = (
+            is_mine_mat
+            & ~pri_hot
+            & (ships >= SECONDARY_MIN_SHIPS)
+            & primary_valid.unsqueeze(1)
+        )   # [B, P]
 
+        tgt_x_exp = tgt_x.unsqueeze(1).expand(B, P)
+        tgt_y_exp = tgt_y.unsqueeze(1).expand(B, P)
+        sec_angle  = torch.atan2(tgt_y_exp - py, tgt_x_exp - px)   # [B, P]
+        sec_nsend  = (ships.float() * SECONDARY_SEND_FRAC).floor().long()   # [B, P]
+
+# ── CPU transfer (single call for all data) ───────────────────────
+        primary_valid_cpu = primary_valid.cpu().tolist()
+        src_pid_cpu       = src_pid.cpu().tolist()
+        angle_cpu         = angle.cpu().tolist()
+        n_send_cpu        = n_send.cpu().tolist()
+
+        sec_eligible_cpu  = sec_eligible.cpu()    
+        sec_pids_cpu      = pids.cpu()
+        sec_angle_cpu     = sec_angle.cpu()
+        sec_nsend_cpu     = sec_nsend.cpu()
+
+        MAX_SECONDARY_K   = 3 # <--- NEW: Hard limit to save SPS
+        
         moves: list[list[Move]] = []
         for i in range(B):
-            if valid_cpu[i]:
-                moves.append([[int(src_pid_cpu[i]), float(angle_cpu[i]), int(n_send_cpu[i])]])
-            else:
-                moves.append([])
-        return moves
+            env_moves: list[Move] = []
 
+            if primary_valid_cpu[i]:
+                env_moves.append([
+                    int(src_pid_cpu[i]),
+                    float(angle_cpu[i]),
+                    int(n_send_cpu[i]),
+                ])
+
+            sec_count = 0
+            for p in range(P):
+                if sec_eligible_cpu[i, p] and sec_count < MAX_SECONDARY_K:
+                    env_moves.append([
+                        int(sec_pids_cpu[i, p].item()),
+                        float(sec_angle_cpu[i, p].item()),
+                        int(sec_nsend_cpu[i, p].item()),
+                    ])
+                    sec_count += 1
+
+            moves.append(env_moves)
+        return moves
+        
+                
 # ── Threaded multi-agent opponent ────────────────────────────────────────────
 
 class MultiAgentOpponent(Opponent):
@@ -420,9 +508,65 @@ class GreedyVectorOpponent(Opponent):
         return moves
 
 
+class SelfPlayOpponent(Opponent):
+    """
+    Mixes a frozen policy snapshot with the greedy fallback.
+    Snapshot is synced every N training updates via sync_from().
+    """
+    def __init__(
+        self,
+        encoder:         OrbitWarsEncoder,
+        device:          torch.device,
+        greedy_mix_prob: float = 0.3,
+        greedy_send_frac: float = 0.60,
+    ):
+        self.encoder         = encoder
+        self.device          = device
+        self.greedy_mix_prob = greedy_mix_prob
+        self._greedy         = GreedyVectorOpponent(send_frac=greedy_send_frac)
+        self._snapshot       = None   
+
+    def sync_from(self, policy) -> None:
+        """Copy current policy weights into the frozen snapshot."""
+        if self._snapshot is None:
+            self._snapshot = copy.deepcopy(policy)
+            self._snapshot.eval()
+        else:
+            self._snapshot.load_state_dict(
+                {k: v.clone() for k, v in policy.state_dict().items()}
+            )
+
+    def act(self, engine: TorchOrbitWarsEnv, seat_per_env: Tensor) -> list[list[Move]]:
+        if self._snapshot is None:
+            return self._greedy.act(engine, seat_per_env)
+
+        use_greedy = torch.rand(engine.B) < self.greedy_mix_prob
+
+        if use_greedy.all():
+            return self._greedy.act(engine, seat_per_env)
+
+        batch = self.encoder.encode(engine, seat_per_env)
+        with torch.no_grad():
+            out   = self._snapshot(batch)
+            
+        dist    = Categorical(logits=out.target_logits)
+        actions = dist.sample()   # [B]
+        policy_moves = self.encoder.decode_actions(batch, actions, engine.B)
+
+        if not use_greedy.any():
+            return policy_moves
+
+        greedy_moves = self._greedy.act(engine, seat_per_env)
+        return [
+            greedy_moves[i] if use_greedy[i].item() else policy_moves[i]
+            for i in range(engine.B)
+        ]
+
+
 __all__ = [
     "OrbitWarsEncoder",
     "MultiAgentOpponent",
     "GreedyVectorOpponent",
     "RLPolicyInput",
+    "SelfPlayOpponent"
 ]

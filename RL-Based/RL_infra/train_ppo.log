@@ -1,7 +1,10 @@
-19:44:39  INFO  Selected cuda:4  (47.1 GB free)
-19:44:40  INFO  Policy parameters: 281,761
-19:44:40  INFO  Collecting rollouts: T=128 × B=1024 = 131072 env-steps per update
-19:44:40  INFO  Resetting environments …
-19:44:57  INFO  Feature shape: (1024, 68, 14)
-19:45:01  INFO  started comet path generation pool with 8 workers
-19:49:08  INFO  Update    5/10000 | env-steps 655,360 | SPS 2197 (avg 3007) | pg 0.0002  vf 0.0088  ent 4.6886  clip 0.05  ev 0.012 | ep_rew 0.152 | wall 250s
+18:27:04  INFO  Selected cuda:4  (47.1 GB free)
+18:27:05  INFO  Collecting rollouts: T=128 × B=1024 = 131072 env-steps per update
+18:27:05  INFO  Resetting environments …
+18:27:21  INFO  Feature shape: (1024, 68, 16)
+18:27:35  INFO  started comet path generation pool with 8 workers
+/usershome/cs671_user11/miniconda3/envs/orbitwars/lib/python3.10/site-packages/triton/language/semantic.py:1670: UserWarning: tl.where with a non-boolean condition is deprecated and will error out in a future triton release. Got int8
+  warnings.warn(
+/usershome/cs671_user11/miniconda3/envs/orbitwars/lib/python3.10/site-packages/triton/language/semantic.py:1670: UserWarning: tl.where with a non-boolean condition is deprecated and will error out in a future triton release. Got int8
+  warnings.warn(
+18:33:23  INFO  Update    5/10000 | env-steps 655,360 | SPS 1574 (avg 1880) | pg 0.0004  vf 0.0128  ent 4.5082  clip 0.02  ev 0.013 | ep_rew -0.387 | wall 357s

@@ -60,6 +60,7 @@ class GpuVectorEnv:
         opponent: Opponent | None = None,
         learner_seat: int = 0,
         base_seed: int = 0,
+        capture_shaping_coef: float = 0.02, # <-- NEW
     ) -> None:
         if learner_seat < 0 or learner_seat >= engine_cfg.num_agents:
             raise ValueError(
@@ -73,6 +74,7 @@ class GpuVectorEnv:
         self.num_envs = engine_cfg.num_envs
         self.num_agents = engine_cfg.num_agents
         self.device = engine_cfg.device
+        self.capture_shaping_coef = capture_shaping_coef # <-- NEW
 
         self._reset_seed_counters = [
             base_seed + i * 100_003 for i in range(self.num_envs)
@@ -117,25 +119,16 @@ class GpuVectorEnv:
         learner_batch: DecisionBatch,
         learner_target_index: torch.Tensor,
     ) -> StepResult:
-        """Apply `learner_target_index` for the learner and an opponent move, then tick.
-
-        `learner_batch` must be the batch most recently returned by
-        `reset()` or the previous `step().next_batch`. The opponent's
-        action is queried fresh each step.
-        """
-
         if learner_target_index.shape[0] != learner_batch.num_rows:
             raise ValueError(
                 f"target_index has {learner_target_index.shape[0]} rows;"
                 f" learner_batch has {learner_batch.num_rows}"
             )
 
-        # --- decode learner moves ---
         learner_moves = self.encoder.decode_actions(
             learner_batch, learner_target_index, self.num_envs
         )
 
-        # --- opponent moves for every non-learner seat ---
         if self.opponent is not None and self._opp_seat_tensors:
             opp_moves_per_seat = self.opponent.act_seats(
                 self.engine, self._opp_seat_tensors
@@ -145,7 +138,6 @@ class GpuVectorEnv:
                 [[] for _ in range(self.num_envs)] for _ in self._opp_seat_tensors
             ]
 
-        # --- assemble per-player action lists ---
         actions_per_player: list[list[list[Move]]] = [
             [[] for _ in range(self.num_envs)] for _ in range(self.num_agents)
         ]
@@ -156,12 +148,20 @@ class GpuVectorEnv:
             for env_idx in range(self.num_envs):
                 actions_per_player[seat_cpu[env_idx]][env_idx] = seat_moves[env_idx]
 
+        # ── Pre-step snapshot for shaping ─────────────────────────────────
+        if self.capture_shaping_coef > 0:
+            pre_owned = (
+                self.engine.planet_owner == self._learner_seat_tensor.unsqueeze(1)
+            ).clone()   # [B, P]
+            pre_alive = (self.engine.planet_id >= 0).clone()   # [B, P]
+
         # --- step the engine ---
         prev_done = self.engine.done.clone()
         self.engine.step_players(actions_per_player)
         done_now = self.engine.done
         new_done = done_now & ~prev_done
 
+        # ── Terminal reward ───────────────────────────────────────────────
         learner_seat_unsq = self._learner_seat_tensor.unsqueeze(1)
         reward_full = (
             self.engine.rewards.to(torch.float32)
@@ -170,11 +170,27 @@ class GpuVectorEnv:
         )
         reward = torch.where(new_done, reward_full, torch.zeros_like(reward_full))
 
-        # --- auto-reset terminal envs so the next encode sees fresh state ---
-        self._auto_reset_terminal()
+        # ── Dense shaping: planet capture/loss ────────────────────────────
+        if self.capture_shaping_coef > 0:
+            post_owned = (
+                self.engine.planet_owner == self._learner_seat_tensor.unsqueeze(1)
+            )   # [B, P]
+            prod = self.engine.planet_production.float()   # [B, P]
 
+            newly_captured = post_owned & ~pre_owned & pre_alive
+            newly_lost     = ~post_owned & pre_owned & pre_alive
+
+            shaping = (
+                (newly_captured.float() - newly_lost.float()) * prod
+            ).sum(dim=1) * self.capture_shaping_coef   # [B]
+
+            # Only apply shaping on non-terminal steps
+            reward = reward + shaping * (~new_done).float()
+
+        self._auto_reset_terminal()
         next_batch = self.encoder.encode(self.engine, self._learner_seat_tensor)
         return StepResult(reward=reward, done=new_done, next_batch=next_batch)
+
 
     def close(self) -> None:
         self.engine.close()

@@ -73,6 +73,8 @@ def agent(obs):
     ships_norm = (parsed.ships / 1000.0).clamp(max=1.0)
     prod_norm = (parsed.prod / 5.0).clamp(max=1.0)
     
+# ... [Keep everything above this the same] ...
+    
     # Calculate angles natively
     dx0 = obs_tensors["initial_planets"][..., 2] - CENTER
     dy0 = obs_tensors["initial_planets"][..., 3] - CENTER
@@ -84,7 +86,7 @@ def agent(obs):
     
     dist_sun_norm = (parsed.orb_r / float(ROT_RADIUS_LIMIT)).clamp(max=1.0)
     
-    # --- NEW V2 FEATURES: Reachability & Proximity ---
+    # V2 FEATURES: Reachability & Proximity
     px = parsed.x
     py = parsed.y
     dx_all = px.unsqueeze(1) - px.unsqueeze(0)   # [P, P]
@@ -93,23 +95,34 @@ def agent(obs):
     INF = 999.0
     
     owned_dist = dist_all.masked_fill(~is_mine.bool().unsqueeze(1).expand_as(dist_all), INF)
-    dist_nearest_owned = owned_dist.amin(dim=0)  # [P] min dist from any owned planet
+    dist_nearest_owned = owned_dist.amin(dim=0)  # [P]
     
     reachable = (dist_nearest_owned < 35.0).float()
     dist_nearest_norm = (dist_nearest_owned / 70.0).clamp(max=1.0)
 
-    # Stack into [P, 14]
+    # ── NEW V3 FEATURES: Global Game Phase & Economy ──
+    step_norm = torch.tensor([step / 500.0], device=device).expand(P)
+    
+    prod = parsed.prod
+    total_prod = prod.sum().clamp(min=1.0)
+    my_prod = (prod * is_mine).sum()
+    prod_ratio = (my_prod / total_prod).expand(P)
+
+    # Stack into [P, 16]
     features_2d = torch.stack([
         is_mine, is_enemy, is_neutral,
         ships_norm, prod_norm, dist_sun_norm,
         torch.sin(cur_angle), torch.cos(cur_angle),
         torch.sin(orb_a0), torch.cos(orb_a0),
         parsed.is_orbiting.float(), parsed.alive.float(),
-        reachable, dist_nearest_norm
+        reachable, dist_nearest_norm,
+        step_norm, prod_ratio # <--- Added here
     ], dim=-1)
 
-    # Add the dummy batch dimension ONLY for the network -> [1, P, 14]
+    # Add the dummy batch dimension ONLY for the network -> [1, P, 16]
     features = features_2d.unsqueeze(0)
+    
+    # ... [Rest of the file remains exactly the same] ...
     alive_mask_batched = parsed.alive.unsqueeze(0)
     is_mine_mask_batched = parsed.owned.bool().unsqueeze(0)
 

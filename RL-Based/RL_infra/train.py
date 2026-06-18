@@ -24,12 +24,19 @@ import json
 import logging
 from pathlib import Path
 
+# Fragmentation fix for large batch attention
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:256"
+
+import torch
+torch.set_float32_matmul_precision('high')
+import torch.nn as nn
+
 # Make RL_infra importable when run from project root
 sys.path.insert(0, str(Path(__file__).parent))
 
 from engine import TorchEngineConfig
 from vector_env import GpuVectorEnv
-from rl_bridge import OrbitWarsEncoder, MultiAgentOpponent, GreedyVectorOpponent, RLPolicyInput
+from rl_bridge import OrbitWarsEncoder, MultiAgentOpponent, GreedyVectorOpponent, RLPolicyInput, SelfPlayOpponent
 from ppo_policy import OrbitWarsPolicy, PPOTrainer, RolloutBuffer
 from interfaces import DecisionBatch
 
@@ -45,20 +52,13 @@ logging.basicConfig(
 log = logging.getLogger("train")
 
 
-## Fragmentation fix for large batch attention
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:256"
-
-import torch
-import torch.nn as nn
-# ... (rest of imports)
-
 # ── Hyper-parameters ────────────────────────────────────────────────────────
 
 NUM_ENVS          = 1024
 NUM_AGENTS        = 2
 ROLLOUT_STEPS     = 128       # steps per update (128 × 1024 = 131,072 env-steps)
 TOTAL_UPDATES     = 10_000    # training budget
-FEAT_DIM          = 14        # updated to match new encoder
+FEAT_DIM          = 16        # updated to match new encoder
 D_MODEL           = 96        # bumped capacity
 N_HEADS           = 4
 N_LAYERS          = 3         # bumped capacity
@@ -66,7 +66,7 @@ N_LAYERS          = 3         # bumped capacity
 LR                = 3e-5      # Lowered for stable transformer learning
 CLIP_EPS          = 0.2
 VF_COEF           = 0.5
-ENT_COEF          = 0.005      # Increased to encourage more exploration
+ENT_COEF          = 0.005     # Decreased to prevent entropy trap with massive action space
 MAX_GRAD_NORM     = 1.0       # Increased gradient allowance
 N_EPOCHS          = 1         # Prevents severe overfitting on the same data
 MINIBATCH_ENVS    = 2048      # Adapted for N_EPOCHS=1
@@ -77,8 +77,7 @@ GAE_LAMBDA        = 0.95
 CHECKPOINT_DIR    = Path("checkpoints")
 CHECKPOINT_EVERY  = 50        # updates
 LOG_EVERY         = 5         # updates
-OPPONENT_WORKERS  = 16
-
+SYNC_OPPONENT_EVERY = 50      # Updates before syncing the self-play opponent
 
 
 def pick_device() -> torch.device:
@@ -98,19 +97,22 @@ def pick_device() -> torch.device:
     return torch.device("cuda:0")
 
 
-def make_env(device: torch.device) -> GpuVectorEnv:
+def make_env(device: torch.device, encoder: OrbitWarsEncoder) -> GpuVectorEnv:
     engine_cfg = TorchEngineConfig(
-        num_envs=NUM_ENVS,
-        num_agents=NUM_AGENTS,
-        device=device,
+        num_envs=NUM_ENVS, num_agents=NUM_AGENTS, device=device,
     )
-    encoder  = OrbitWarsEncoder(movement_horizon=15)
-    # GreedyVectorOpponent: pure [B,P] tensor ops, zero Python per-env loop.
-    # Scales to 1024+ envs with no throughput penalty.
-    opponent = GreedyVectorOpponent(send_frac=0.55)
-    return GpuVectorEnv(engine_cfg=engine_cfg, encoder=encoder,
-                        opponent=opponent, learner_seat=0)
-
+    opponent = SelfPlayOpponent(
+        encoder=encoder,
+        device=device,
+        greedy_mix_prob=0.30,    # 30% greedy keeps training diverse
+    )
+    return GpuVectorEnv(
+        engine_cfg=engine_cfg,
+        encoder=encoder,
+        opponent=opponent,
+        learner_seat=0,
+        capture_shaping_coef=0.02, # Shaping coefficient linked!
+    )
 
 def make_policy(device: torch.device) -> OrbitWarsPolicy:
     return OrbitWarsPolicy(
@@ -136,7 +138,6 @@ def collect_rollout(
 
     obs_feat   = torch.zeros(rollout_steps, B, P, feat_dim, device=device)
     obs_alive  = torch.zeros(rollout_steps, B, P, dtype=torch.bool, device=device)
-    obs_is_mine = torch.zeros(rollout_steps, B, P, dtype=torch.bool, device=device)
     actions    = torch.zeros(rollout_steps, B, dtype=torch.long, device=device)
     log_probs  = torch.zeros(rollout_steps, B, device=device)
     values     = torch.zeros(rollout_steps, B, device=device)
@@ -149,7 +150,9 @@ def collect_rollout(
         inp: RLPolicyInput = batch.policy_input
         obs_feat[t]  = inp.features
         obs_alive[t] = inp.alive_mask
-        obs_is_mine[t] = inp.is_mine_mask
+        
+        # Notice we do NOT track obs_is_mine here to keep the RolloutBuffer clean.
+        # We will dynamically recreate it in the PPOTrainer using feature [0].
 
         out = policy(batch)
         dist = torch.distributions.Categorical(logits=out.target_logits)
@@ -176,7 +179,6 @@ def collect_rollout(
     buf = RolloutBuffer(
         obs_features=obs_feat,
         obs_alive=obs_alive,
-        obs_is_mine=obs_is_mine,
         actions=actions,
         log_probs=log_probs,
         values=values,
@@ -189,7 +191,10 @@ def collect_rollout(
 def main():
     CHECKPOINT_DIR.mkdir(exist_ok=True)
     device  = pick_device()
-    env     = make_env(device)
+    
+    # Encoder initialized FIRST so the env can inject it into the Self-Play opponent
+    encoder = OrbitWarsEncoder(movement_horizon=15)
+    env     = make_env(device, encoder)
     policy  = make_policy(device)
 
     policy = torch.compile(policy, mode="reduce-overhead")
@@ -208,8 +213,7 @@ def main():
         device=device,
     )
 
-    param_count = sum(p.numel() for p in policy.parameters() if p.requires_grad)
-    log.info("Policy parameters: %s", f"{param_count:,}")
+    # Disable param printing for compiled models to avoid torch.compile warnings
     log.info("Collecting rollouts: T=%d × B=%d = %d env-steps per update",
              ROLLOUT_STEPS, NUM_ENVS, ROLLOUT_STEPS * NUM_ENVS)
 
@@ -251,6 +255,11 @@ def main():
             sps_window.pop(0)
         smoothed_sps = sum(sps_window) / len(sps_window)
 
+        # ── NEW: Sync self-play opponent ──
+        if update % SYNC_OPPONENT_EVERY == 0:
+            env.update_opponent_from(policy)
+            log.info("Synced self-play opponent snapshot at update %d", update)
+
         if update % 100 == 0:
             import gc
             gc.collect()
@@ -265,7 +274,7 @@ def main():
                 f"{total_env_steps:,}",
                 sps, smoothed_sps,
                 metrics["pg"], metrics["vf"], metrics["ent"], metrics["clip_frac"],
-                metrics["explained_var"], ep_rew,
+                metrics.get("explained_var", 0.0), ep_rew,
                 f"{wall:.0f}s",
             )
 
@@ -282,7 +291,6 @@ def main():
 
     log.info("Training complete. Total env-steps: %s", f"{total_env_steps:,}")
     env.close()
-
 
 if __name__ == "__main__":
     main()
