@@ -1,13 +1,13 @@
 """Vector-env wrapper around `TorchOrbitWarsEnv` with pluggable encoder + opponent.
 
 `GpuVectorEnv` runs one game tick across all B envs per `step`. The
-learner's action for each env comes from a sampled `target_index` over
-the rows the encoder emitted; the opponent supplies actions for every
+learner's action for each env comes from the multi-head policy outputs
+(gate, target, fraction); the opponent supplies actions for every
 non-learner seat via the `Opponent` protocol.
 
 This is intentionally thin -- it does not own the policy or the training
 loop. Build a policy that consumes `DecisionBatch`, sample your own
-`target_index` from its logits, and hand both back to `step()`.
+actions from its logits, and hand both back to `step()`.
 
 Multi-team (`num_agents > 2`) is supported as long as `Opponent.act_seats`
 returns one entry per non-learner seat.
@@ -60,7 +60,7 @@ class GpuVectorEnv:
         opponent: Opponent | None = None,
         learner_seat: int = 0,
         base_seed: int = 0,
-        capture_shaping_coef: float = 0.02, # <-- NEW
+        capture_shaping_coef: float = 0.02, # <-- Brilliant dense shaping addition
     ) -> None:
         if learner_seat < 0 or learner_seat >= engine_cfg.num_agents:
             raise ValueError(
@@ -74,7 +74,7 @@ class GpuVectorEnv:
         self.num_envs = engine_cfg.num_envs
         self.num_agents = engine_cfg.num_agents
         self.device = engine_cfg.device
-        self.capture_shaping_coef = capture_shaping_coef # <-- NEW
+        self.capture_shaping_coef = capture_shaping_coef 
 
         self._reset_seed_counters = [
             base_seed + i * 100_003 for i in range(self.num_envs)
@@ -117,22 +117,32 @@ class GpuVectorEnv:
     def step(
         self,
         learner_batch: DecisionBatch,
-        learner_target_index: torch.Tensor,
+        gate_actions: torch.Tensor,   # <-- NEW: Replaced learner_target_index
+        tgt_actions: torch.Tensor,    # <-- NEW
+        ship_frac: torch.Tensor,      # <-- NEW
     ) -> StepResult:
-        if learner_target_index.shape[0] != learner_batch.num_rows:
+        
+        if gate_actions.shape[0] != self.num_envs:
             raise ValueError(
-                f"target_index has {learner_target_index.shape[0]} rows;"
-                f" learner_batch has {learner_batch.num_rows}"
+                f"gate_actions batch size ({gate_actions.shape[0]}) does not match "
+                f"environment count ({self.num_envs})"
             )
 
+        # Pass all 3 multi-head tensors to the newly upgraded decoder
         learner_moves = self.encoder.decode_actions(
-            learner_batch, learner_target_index, self.num_envs
+            learner_batch, gate_actions, tgt_actions, ship_frac, self.num_envs
         )
 
         if self.opponent is not None and self._opp_seat_tensors:
-            opp_moves_per_seat = self.opponent.act_seats(
-                self.engine, self._opp_seat_tensors
-            )
+            # Check if opponent uses act or act_seats based on the wrapper
+            if hasattr(self.opponent, "act_seats"):
+                opp_moves_per_seat = self.opponent.act_seats(
+                    self.engine, self._opp_seat_tensors
+                )
+            else:
+                opp_moves_per_seat = [
+                    self.opponent.act(self.engine, seat) for seat in self._opp_seat_tensors
+                ]
         else:
             opp_moves_per_seat = [
                 [[] for _ in range(self.num_envs)] for _ in self._opp_seat_tensors

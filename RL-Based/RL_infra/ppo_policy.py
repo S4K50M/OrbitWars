@@ -49,84 +49,133 @@ class _PlanetLayer(nn.Module):
         return x
 
 
-class OrbitWarsPolicy(Policy):
+@dataclass
+class PolicyOutput:
+    gate_logits: Tensor   # [B, P]    — per-planet launch/hold Bernoulli
+    tgt_logits:  Tensor   # [B, P, P] — per-source Categorical over targets
+    ship_frac:   Tensor   # [B, P]    — sigmoid fraction of available ships
+    value:       Tensor   # [B]
+
+class OrbitWarsPolicy(nn.Module):
     def __init__(
         self,
-        feat_dim: int = 14,        # updated from 12
-        d_model: int = 96,         # bump from 64
-        n_heads: int = 4,
-        n_layers: int = 3,         # restore to 3 layers
-        d_ff: int = 256,
-        dropout: float = 0.1,
+        feat_dim: int = 16,
+        d_model:  int = 128,
+        n_heads:  int = 4,
+        n_layers: int = 4,
+        d_ff:     int = 512,
+        dropout:  float = 0.1,
     ):
         super().__init__()
         self.input_proj = nn.Sequential(
-            nn.Linear(feat_dim, d_model),
-            nn.LayerNorm(d_model),
+            nn.Linear(feat_dim, d_model), 
+            nn.LayerNorm(d_model), 
             nn.GELU(),
         )
-        self.layers = nn.ModuleList(
-            [_PlanetLayer(d_model, n_heads, d_ff, dropout) for _ in range(n_layers)]
+        
+        # Standard Transformer Encoder
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model, nhead=n_heads, dim_feedforward=d_ff, 
+            dropout=dropout, batch_first=True
+        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
+
+        # ── Per-planet action heads ──
+        self.launch_gate = nn.Linear(d_model, 1)
+
+        d_pair = d_model // 2
+        self.tgt_query = nn.Linear(d_model, d_pair)
+        self.tgt_key   = nn.Linear(d_model, d_pair)
+        self._tgt_scale = math.sqrt(d_pair)
+
+        self.ship_frac_head = nn.Sequential(
+            nn.Linear(d_model, d_model // 2), nn.GELU(),
+            nn.Linear(d_model // 2, 1),
         )
 
-        # Source-Target bilinear attention
-        # Q = source embedding (launches FROM here), K = target embedding (launches TO here)
-        d_pair = d_model // 2
-        self.src_proj = nn.Linear(d_model, d_pair)
-        self.tgt_proj = nn.Linear(d_model, d_pair)
-        self._pair_scale = math.sqrt(d_pair)
-
-        # Value head
         self.value_head = nn.Sequential(
             nn.Linear(d_model, d_model), nn.GELU(), nn.Linear(d_model, 1)
         )
 
-    def forward(self, batch: DecisionBatch) -> PolicyOutput:
+    def _encode(self, batch: DecisionBatch):
         inp = batch.policy_input
-        x     = inp.features       # [B, P, feat_dim]
-        alive = inp.alive_mask     # [B, P] bool
-        is_mine = inp.is_mine_mask # [B, P] bool
+        x = inp.features       
+        alive = inp.alive_mask     
+        is_mine = inp.is_mine_mask
+        
+        x = self.input_proj(x)
+        # PyTorch transformer expects padding mask where True means "ignore"
+        x = self.transformer(x, src_key_padding_mask=~alive)
+        return x, alive, is_mine
 
+    def forward(self, batch: DecisionBatch) -> PolicyOutput:
+        x, alive, is_mine = self._encode(batch)
         B, P, _ = x.shape
 
-        x = self.input_proj(x)
-        pad_mask = ~alive
-        for layer in self.layers:
-            x = layer(x, pad_mask)
+        # 1. Launch Gate
+        gate_logits = self.launch_gate(x).squeeze(-1)          
+        gate_logits = gate_logits.masked_fill(~is_mine, -1e9)  
 
-        # ── Source-Target pair logits ──────────────────────────────────
-        q = self.src_proj(x)   # [B, P, d_pair]  — source side
-        k = self.tgt_proj(x)   # [B, P, d_pair]  — target side
-        pair_logits = torch.bmm(q, k.transpose(1, 2)) / self._pair_scale  # [B, P, P]
+        # 2. Bilinear Target Attention
+        q = self.tgt_query(x)  
+        k = self.tgt_key(x)    
+        tgt_logits = torch.bmm(q, k.transpose(1, 2)) / self._tgt_scale  
 
-        # Valid pair mask:
-        #   Row (source): must be alive and owned by learner
-        #   Col (target): must be alive and NOT owned (attack/capture)
-        #   Diagonal: source ≠ target
-        src_ok  = is_mine.unsqueeze(2).expand_as(pair_logits)          # [B, P, P]
-        tgt_ok  = (~is_mine & alive).unsqueeze(1).expand_as(pair_logits) # [B, P, P]
-        eye_mask = torch.eye(P, device=x.device, dtype=torch.bool).unsqueeze(0)
+        valid_tgt = (alive & ~is_mine).unsqueeze(1).expand_as(tgt_logits)
+        eye = torch.eye(P, device=x.device, dtype=torch.bool).unsqueeze(0)
+        tgt_logits = tgt_logits.masked_fill(~valid_tgt | eye, float("-inf"))
 
-        valid = src_ok & tgt_ok & ~eye_mask
-        pair_logits = pair_logits.masked_fill(~valid, float("-inf"))
+        no_tgt = (~valid_tgt | eye).all(dim=2)       
+        fallback = alive.unsqueeze(1).expand_as(tgt_logits).float()
+        tgt_logits = torch.where(no_tgt.unsqueeze(2), fallback, tgt_logits)
 
-        # Safety fallback if an env has NO valid pairs
-        has_valid = valid.any(dim=(1, 2))  # [B]
-        flat_logits = pair_logits.view(B, P * P)
-        fallback = alive.unsqueeze(1).expand(B, P, P).reshape(B, P * P).float()
-        flat_logits = torch.where(
-            has_valid.view(B, 1).expand_as(flat_logits),
-            flat_logits,
-            fallback 
-        )
+        # 3. Ship Fraction
+        ship_frac = torch.sigmoid(self.ship_frac_head(x)).squeeze(-1)  
 
-        # ── Value head ─────────────────────────────────────────────────
+        # 4. Value
         alive_f = alive.float().unsqueeze(-1)
-        pooled = (x * alive_f).sum(1) / alive_f.sum(1).clamp(min=1.0)
-        value = self.value_head(pooled).squeeze(-1)
+        pooled  = (x * alive_f).sum(1) / alive_f.sum(1).clamp(min=1.0)
+        value   = self.value_head(pooled).squeeze(-1)
 
-        return PolicyOutput(target_logits=flat_logits, value=value)
+        return PolicyOutput(gate_logits, tgt_logits, ship_frac, value)
+
+    def bc_forward(self, batch: DecisionBatch):
+        """Unmasked forward pass specifically for DAgger/BC training."""
+        x, alive, _ = self._encode(batch)
         
+        q = self.tgt_query(x)
+        k = self.tgt_key(x)
+        tgt_logits = torch.bmm(q, k.transpose(1, 2)) / self._tgt_scale
+        
+        dead = (~alive).unsqueeze(1) | (~alive).unsqueeze(2)
+        tgt_logits = tgt_logits.masked_fill(dead, float("-inf"))
+        
+        gate_logits = self.launch_gate(x).squeeze(-1)
+        ship_frac   = torch.sigmoid(self.ship_frac_head(x)).squeeze(-1)
+        
+        return gate_logits, tgt_logits, ship_frac
+
+@torch.no_grad()
+def sample_per_planet(out: PolicyOutput, is_mine: Tensor):
+    """Samples actions and calculates composite log probabilities."""
+    B, P = is_mine.shape
+
+    gate_dist    = torch.distributions.Bernoulli(logits=out.gate_logits)
+    gate_actions = gate_dist.sample().bool() & is_mine   
+    gate_lp      = gate_dist.log_prob(gate_actions.float())  
+
+    BP = B * P
+    tgt_dist    = torch.distributions.Categorical(logits=out.tgt_logits.view(BP, P))
+    tgt_actions = tgt_dist.sample().view(B, P)              
+    tgt_lp      = tgt_dist.log_prob(tgt_actions.view(BP)).view(B, P)  
+
+    ship_frac = out.ship_frac  
+
+    total_lp = (
+        (gate_lp + gate_actions.float() * tgt_lp) * is_mine.float()
+    ).sum(dim=1)   
+
+    return gate_actions, tgt_actions, ship_frac, total_lp        
 # ── Rollout buffer ──────────────────────────────────────────────────────────
 
 @dataclass

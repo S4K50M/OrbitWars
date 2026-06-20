@@ -1,0 +1,16 @@
+Starting Live Behavioral Cloning on cuda:4...
+Successfully completed first update. GPU/CPU Pipeline healthy.
+Update   50/1500 | Loss: 3.0282 | SPS: 9 | Time: 706.4s
+Update  100/1500 | Loss: 2.9762 | SPS: 8 | Time: 776.2s
+Update  150/1500 | Loss: 2.8190 | SPS: 8 | Time: 807.5s
+Update  200/1500 | Loss: 2.7533 | SPS: 8 | Time: 789.2s
+Update  250/1500 | Loss: 2.6975 | SPS: 8 | Time: 769.3s
+Update  300/1500 | Loss: 2.5591 | SPS: 8 | Time: 793.9s
+--> Interim Checkpoint saved: checkpoints/bc_2p_baseline_up300.pt
+Update  350/1500 | Loss: 2.5790 | SPS: 8 | Time: 771.7s
+Update  400/1500 | Loss: 2.5720 | SPS: 8 | Time: 776.7s
+Update  450/1500 | Loss: 2.5371 | SPS: 8 | Time: 791.0s
+Update  500/1500 | Loss: 2.6047 | SPS: 8 | Time: 791.5s
+Update  550/1500 | Loss: 2.5749 | SPS: 8 | Time: 763.3s
+Update  600/1500 | Loss: 2.6219 | SPS: 8 | Time: 799.7s
+--> Interim Checkpoint saved: checkpoints/bc_2p_baseline_up600.pt

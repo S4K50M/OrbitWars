@@ -8,3 +8,397 @@
 /usershome/cs671_user11/miniconda3/envs/orbitwars/lib/python3.10/site-packages/triton/language/semantic.py:1670: UserWarning: tl.where with a non-boolean condition is deprecated and will error out in a future triton release. Got int8
   warnings.warn(
 18:33:23  INFO  Update    5/10000 | env-steps 655,360 | SPS 1574 (avg 1880) | pg 0.0004  vf 0.0128  ent 4.5082  clip 0.02  ev 0.013 | ep_rew -0.387 | wall 357s
+18:39:48  INFO  Update   10/10000 | env-steps 1,310,720 | SPS 1693 (avg 1791) | pg 0.0004  vf 0.0126  ent 4.6444  clip 0.02  ev 0.014 | ep_rew -0.481 | wall 742s
+18:46:15  INFO  Update   15/10000 | env-steps 1,966,080 | SPS 1787 (avg 1760) | pg 0.0007  vf 0.0115  ent 4.5954  clip 0.02  ev 0.015 | ep_rew -0.431 | wall 1128s
+18:52:35  INFO  Update   20/10000 | env-steps 2,621,440 | SPS 1768 (avg 1751) | pg 0.0006  vf 0.0104  ent 4.6289  clip 0.02  ev 0.015 | ep_rew -0.429 | wall 1509s
+18:58:57  INFO  Update   25/10000 | env-steps 3,276,800 | SPS 1707 (avg 1710) | pg 0.0001  vf 0.0099  ent 4.6191  clip 0.02  ev 0.015 | ep_rew -0.538 | wall 1891s
+19:05:22  INFO  Update   30/10000 | env-steps 3,932,160 | SPS 1713 (avg 1711) | pg 0.0003  vf 0.0104  ent 4.6009  clip 0.03  ev 0.015 | ep_rew -0.494 | wall 2276s
+19:11:50  INFO  Update   35/10000 | env-steps 4,587,520 | SPS 1698 (avg 1709) | pg 0.0005  vf 0.0099  ent 4.5662  clip 0.03  ev 0.015 | ep_rew -0.379 | wall 2663s
+19:18:13  INFO  Update   40/10000 | env-steps 5,242,880 | SPS 1702 (avg 1706) | pg 0.0002  vf 0.0102  ent 4.6356  clip 0.03  ev 0.015 | ep_rew -0.411 | wall 3047s
+19:24:35  INFO  Update   45/10000 | env-steps 5,898,240 | SPS 1631 (avg 1705) | pg 0.0005  vf 0.0103  ent 4.6428  clip 0.03  ev 0.015 | ep_rew -0.420 | wall 3429s
+19:30:58  INFO  Synced self-play opponent snapshot at update 50
+19:30:58  INFO  Update   50/10000 | env-steps 6,553,600 | SPS 1701 (avg 1708) | pg 0.0003  vf 0.0102  ent 4.6074  clip 0.03  ev 0.015 | ep_rew -0.389 | wall 3812s
+19:30:58  INFO  Saved checkpoint → checkpoints/policy_6553600.pt
+/usershome/cs671_user11/miniconda3/envs/orbitwars/lib/python3.10/site-packages/triton/language/semantic.py:1670: UserWarning: tl.where with a non-boolean condition is deprecated and will error out in a future triton release. Got int8
+  warnings.warn(
+/usershome/cs671_user11/miniconda3/envs/orbitwars/lib/python3.10/site-packages/triton/language/semantic.py:1670: UserWarning: tl.where with a non-boolean condition is deprecated and will error out in a future triton release. Got int8
+  warnings.warn(
+19:39:17  INFO  Update   55/10000 | env-steps 7,208,960 | SPS 1386 (avg 1614) | pg 0.0009  vf 0.0184  ent 4.6424  clip 0.04  ev 0.015 | ep_rew -0.209 | wall 4311s
+19:47:30  INFO  Update   60/10000 | env-steps 7,864,320 | SPS 1343 (avg 1519) | pg 0.0001  vf 0.0188  ent 4.5888  clip 0.03  ev 0.015 | ep_rew -0.141 | wall 4804s
+19:55:51  INFO  Update   65/10000 | env-steps 8,519,680 | SPS 1315 (avg 1418) | pg 0.0005  vf 0.0200  ent 4.6119  clip 0.04  ev 0.015 | ep_rew -0.170 | wall 5305s
+20:03:58  INFO  Update   70/10000 | env-steps 9,175,040 | SPS 1324 (avg 1326) | pg 0.0009  vf 0.0200  ent 4.5893  clip 0.05  ev 0.015 | ep_rew -0.145 | wall 5792s
+20:12:16  INFO  Update   75/10000 | env-steps 9,830,400 | SPS 1327 (avg 1326) | pg 0.0007  vf 0.0198  ent 4.5459  clip 0.06  ev 0.015 | ep_rew -0.039 | wall 6290s
+20:20:28  INFO  Update   80/10000 | env-steps 10,485,760 | SPS 1321 (avg 1327) | pg 0.0007  vf 0.0214  ent 4.5288  clip 0.06  ev 0.015 | ep_rew -0.017 | wall 6781s
+20:28:30  INFO  Update   85/10000 | env-steps 11,141,120 | SPS 1373 (avg 1339) | pg 0.0016  vf 0.0207  ent 4.5383  clip 0.07  ev 0.015 | ep_rew -0.102 | wall 7264s
+20:36:43  INFO  Update   90/10000 | env-steps 11,796,480 | SPS 1314 (avg 1336) | pg 0.0013  vf 0.0194  ent 4.5563  clip 0.07  ev 0.015 | ep_rew 0.030 | wall 7757s
+20:44:55  INFO  Update   95/10000 | env-steps 12,451,840 | SPS 1337 (avg 1339) | pg 0.0014  vf 0.0204  ent 4.5358  clip 0.06  ev 0.015 | ep_rew -0.040 | wall 8249s
+20:53:02  INFO  Synced self-play opponent snapshot at update 100
+20:53:02  INFO  Update  100/10000 | env-steps 13,107,200 | SPS 1384 (avg 1342) | pg 0.0010  vf 0.0205  ent 4.5133  clip 0.07  ev 0.015 | ep_rew 0.034 | wall 8736s
+20:53:02  INFO  Saved checkpoint → checkpoints/policy_13107200.pt
+21:01:03  INFO  Update  105/10000 | env-steps 13,762,560 | SPS 1343 (avg 1344) | pg 0.0015  vf 0.0207  ent 4.4884  clip 0.08  ev 0.015 | ep_rew -0.012 | wall 9217s
+21:09:22  INFO  Update  110/10000 | env-steps 14,417,920 | SPS 1326 (avg 1339) | pg 0.0014  vf 0.0221  ent 4.5066  clip 0.07  ev 0.015 | ep_rew 0.034 | wall 9716s
+21:17:34  INFO  Update  115/10000 | env-steps 15,073,280 | SPS 1293 (avg 1339) | pg 0.0020  vf 0.0216  ent 4.4707  clip 0.08  ev 0.015 | ep_rew 0.068 | wall 10208s
+21:25:44  INFO  Update  120/10000 | env-steps 15,728,640 | SPS 1297 (avg 1337) | pg 0.0020  vf 0.0197  ent 4.4412  clip 0.09  ev 0.015 | ep_rew 0.041 | wall 10698s
+21:33:51  INFO  Update  125/10000 | env-steps 16,384,000 | SPS 1320 (avg 1333) | pg 0.0023  vf 0.0219  ent 4.4185  clip 0.09  ev 0.015 | ep_rew 0.104 | wall 11185s
+21:42:03  INFO  Update  130/10000 | env-steps 17,039,360 | SPS 1358 (avg 1338) | pg 0.0016  vf 0.0206  ent 4.4509  clip 0.09  ev 0.015 | ep_rew 0.100 | wall 11677s
+21:50:02  INFO  Update  135/10000 | env-steps 17,694,720 | SPS 1376 (avg 1347) | pg 0.0017  vf 0.0207  ent 4.4022  clip 0.09  ev 0.015 | ep_rew 0.105 | wall 12156s
+21:58:06  INFO  Update  140/10000 | env-steps 18,350,080 | SPS 1382 (avg 1351) | pg 0.0021  vf 0.0209  ent 4.4166  clip 0.10  ev 0.015 | ep_rew 0.130 | wall 12640s
+22:05:58  INFO  Update  145/10000 | env-steps 19,005,440 | SPS 1354 (avg 1361) | pg 0.0019  vf 0.0208  ent 4.4261  clip 0.08  ev 0.015 | ep_rew 0.157 | wall 13112s
+22:13:59  INFO  Synced self-play opponent snapshot at update 150
+22:13:59  INFO  Update  150/10000 | env-steps 19,660,800 | SPS 1380 (avg 1369) | pg 0.0017  vf 0.0205  ent 4.4202  clip 0.09  ev 0.015 | ep_rew 0.168 | wall 13593s
+22:13:59  INFO  Saved checkpoint → checkpoints/policy_19660800.pt
+22:22:09  INFO  Update  155/10000 | env-steps 20,316,160 | SPS 1385 (avg 1361) | pg 0.0016  vf 0.0198  ent 4.3816  clip 0.09  ev 0.015 | ep_rew 0.076 | wall 14083s
+22:30:20  INFO  Update  160/10000 | env-steps 20,971,520 | SPS 1297 (avg 1356) | pg 0.0023  vf 0.0196  ent 4.3963  clip 0.09  ev 0.015 | ep_rew 0.087 | wall 14574s
+22:38:31  INFO  Update  165/10000 | env-steps 21,626,880 | SPS 1302 (avg 1343) | pg 0.0027  vf 0.0205  ent 4.3577  clip 0.10  ev 0.015 | ep_rew 0.036 | wall 15065s
+22:46:39  INFO  Update  170/10000 | env-steps 22,282,240 | SPS 1363 (avg 1338) | pg 0.0025  vf 0.0213  ent 4.4120  clip 0.09  ev 0.015 | ep_rew 0.106 | wall 15553s
+22:54:51  INFO  Update  175/10000 | env-steps 22,937,600 | SPS 1347 (avg 1337) | pg 0.0017  vf 0.0208  ent 4.3832  clip 0.09  ev 0.015 | ep_rew 0.097 | wall 16045s
+23:03:08  INFO  Update  180/10000 | env-steps 23,592,960 | SPS 1307 (avg 1333) | pg 0.0022  vf 0.0218  ent 4.3413  clip 0.10  ev 0.015 | ep_rew 0.190 | wall 16542s
+23:11:09  INFO  Update  185/10000 | env-steps 24,248,320 | SPS 1347 (avg 1340) | pg 0.0029  vf 0.0213  ent 4.3858  clip 0.09  ev 0.015 | ep_rew 0.162 | wall 17023s
+23:19:18  INFO  Update  190/10000 | env-steps 24,903,680 | SPS 1347 (avg 1339) | pg 0.0027  vf 0.0212  ent 4.3525  clip 0.09  ev 0.015 | ep_rew 0.189 | wall 17512s
+23:27:32  INFO  Update  195/10000 | env-steps 25,559,040 | SPS 1302 (avg 1338) | pg 0.0024  vf 0.0206  ent 4.2963  clip 0.10  ev 0.015 | ep_rew 0.105 | wall 18006s
+23:35:37  INFO  Synced self-play opponent snapshot at update 200
+23:35:37  INFO  Update  200/10000 | env-steps 26,214,400 | SPS 1301 (avg 1346) | pg 0.0033  vf 0.0197  ent 4.3006  clip 0.10  ev 0.015 | ep_rew 0.196 | wall 18491s
+23:35:37  INFO  Saved checkpoint → checkpoints/policy_26214400.pt
+23:43:35  INFO  Update  205/10000 | env-steps 26,869,760 | SPS 1397 (avg 1348) | pg 0.0036  vf 0.0209  ent 4.3087  clip 0.11  ev 0.015 | ep_rew 0.155 | wall 18969s
+23:51:40  INFO  Update  210/10000 | env-steps 27,525,120 | SPS 1352 (avg 1351) | pg 0.0034  vf 0.0202  ent 4.2580  clip 0.11  ev 0.015 | ep_rew 0.192 | wall 19454s
+23:59:59  INFO  Update  215/10000 | env-steps 28,180,480 | SPS 1273 (avg 1348) | pg 0.0031  vf 0.0203  ent 4.2862  clip 0.11  ev 0.015 | ep_rew 0.179 | wall 19952s
+00:08:10  INFO  Update  220/10000 | env-steps 28,835,840 | SPS 1410 (avg 1344) | pg 0.0035  vf 0.0193  ent 4.2053  clip 0.12  ev 0.015 | ep_rew 0.246 | wall 20444s
+00:16:16  INFO  Update  225/10000 | env-steps 29,491,200 | SPS 1361 (avg 1338) | pg 0.0027  vf 0.0197  ent 4.1955  clip 0.11  ev 0.015 | ep_rew 0.104 | wall 20930s
+00:24:31  INFO  Update  230/10000 | env-steps 30,146,560 | SPS 1363 (avg 1331) | pg 0.0033  vf 0.0199  ent 4.2650  clip 0.11  ev 0.015 | ep_rew 0.212 | wall 21425s
+00:32:36  INFO  Update  235/10000 | env-steps 30,801,920 | SPS 1359 (avg 1340) | pg 0.0033  vf 0.0187  ent 4.2377  clip 0.11  ev 0.015 | ep_rew 0.177 | wall 21910s
+00:40:47  INFO  Update  240/10000 | env-steps 31,457,280 | SPS 1328 (avg 1341) | pg 0.0032  vf 0.0187  ent 4.2431  clip 0.10  ev 0.015 | ep_rew 0.223 | wall 22401s
+00:48:57  INFO  Update  245/10000 | env-steps 32,112,640 | SPS 1323 (avg 1338) | pg 0.0026  vf 0.0180  ent 4.2011  clip 0.11  ev 0.015 | ep_rew 0.176 | wall 22891s
+00:57:11  INFO  Synced self-play opponent snapshot at update 250
+00:57:11  INFO  Update  250/10000 | env-steps 32,768,000 | SPS 1340 (avg 1339) | pg 0.0028  vf 0.0192  ent 4.1582  clip 0.11  ev 0.015 | ep_rew 0.236 | wall 23385s
+00:57:11  INFO  Saved checkpoint → checkpoints/policy_32768000.pt
+01:05:20  INFO  Update  255/10000 | env-steps 33,423,360 | SPS 1411 (avg 1336) | pg 0.0036  vf 0.0193  ent 4.1481  clip 0.12  ev 0.015 | ep_rew 0.211 | wall 23874s
+01:13:44  INFO  Update  260/10000 | env-steps 34,078,720 | SPS 1332 (avg 1327) | pg 0.0020  vf 0.0193  ent 4.1909  clip 0.10  ev 0.015 | ep_rew 0.163 | wall 24378s
+01:21:49  INFO  Update  265/10000 | env-steps 34,734,080 | SPS 1429 (avg 1332) | pg 0.0029  vf 0.0193  ent 4.1713  clip 0.10  ev 0.015 | ep_rew 0.162 | wall 24863s
+01:29:58  INFO  Update  270/10000 | env-steps 35,389,440 | SPS 1298 (avg 1335) | pg 0.0024  vf 0.0193  ent 4.1596  clip 0.11  ev 0.015 | ep_rew 0.179 | wall 25352s
+01:38:04  INFO  Update  275/10000 | env-steps 36,044,800 | SPS 1343 (avg 1337) | pg 0.0029  vf 0.0198  ent 4.1733  clip 0.11  ev 0.015 | ep_rew 0.150 | wall 25838s
+01:46:09  INFO  Update  280/10000 | env-steps 36,700,160 | SPS 1349 (avg 1349) | pg 0.0031  vf 0.0196  ent 4.1444  clip 0.11  ev 0.015 | ep_rew 0.227 | wall 26323s
+01:54:28  INFO  Update  285/10000 | env-steps 37,355,520 | SPS 1279 (avg 1339) | pg 0.0030  vf 0.0191  ent 4.1821  clip 0.11  ev 0.015 | ep_rew 0.205 | wall 26822s
+02:02:54  INFO  Update  290/10000 | env-steps 38,010,880 | SPS 1352 (avg 1328) | pg 0.0029  vf 0.0204  ent 4.1370  clip 0.11  ev 0.015 | ep_rew 0.200 | wall 27328s
+02:11:02  INFO  Update  295/10000 | env-steps 38,666,240 | SPS 1306 (avg 1327) | pg 0.0030  vf 0.0196  ent 4.0645  clip 0.11  ev 0.015 | ep_rew 0.211 | wall 27816s
+02:19:10  INFO  Synced self-play opponent snapshot at update 300
+02:19:10  INFO  Update  300/10000 | env-steps 39,321,600 | SPS 1300 (avg 1325) | pg 0.0037  vf 0.0183  ent 4.0646  clip 0.12  ev 0.015 | ep_rew 0.249 | wall 28304s
+02:19:10  INFO  Saved checkpoint → checkpoints/policy_39321600.pt
+02:27:27  INFO  Update  305/10000 | env-steps 39,976,960 | SPS 1323 (avg 1326) | pg 0.0035  vf 0.0194  ent 4.0522  clip 0.12  ev 0.015 | ep_rew 0.172 | wall 28801s
+02:35:32  INFO  Update  310/10000 | env-steps 40,632,320 | SPS 1345 (avg 1340) | pg 0.0035  vf 0.0177  ent 4.0157  clip 0.12  ev 0.015 | ep_rew 0.252 | wall 29286s
+02:43:38  INFO  Update  315/10000 | env-steps 41,287,680 | SPS 1309 (avg 1342) | pg 0.0041  vf 0.0182  ent 4.0324  clip 0.12  ev 0.015 | ep_rew 0.236 | wall 29772s
+02:51:45  INFO  Update  320/10000 | env-steps 41,943,040 | SPS 1327 (avg 1342) | pg 0.0042  vf 0.0183  ent 4.0073  clip 0.12  ev 0.015 | ep_rew 0.261 | wall 30259s
+03:00:00  INFO  Update  325/10000 | env-steps 42,598,400 | SPS 1337 (avg 1343) | pg 0.0028  vf 0.0193  ent 4.0363  clip 0.11  ev 0.015 | ep_rew 0.251 | wall 30754s
+03:08:07  INFO  Update  330/10000 | env-steps 43,253,760 | SPS 1369 (avg 1342) | pg 0.0028  vf 0.0186  ent 4.0440  clip 0.11  ev 0.015 | ep_rew 0.202 | wall 31241s
+03:16:24  INFO  Update  335/10000 | env-steps 43,909,120 | SPS 1368 (avg 1334) | pg 0.0041  vf 0.0187  ent 4.0048  clip 0.11  ev 0.015 | ep_rew 0.196 | wall 31738s
+03:24:34  INFO  Update  340/10000 | env-steps 44,564,480 | SPS 1307 (avg 1332) | pg 0.0028  vf 0.0192  ent 4.0559  clip 0.11  ev 0.015 | ep_rew 0.202 | wall 32228s
+03:32:45  INFO  Update  345/10000 | env-steps 45,219,840 | SPS 1358 (avg 1335) | pg 0.0029  vf 0.0179  ent 4.0095  clip 0.12  ev 0.015 | ep_rew 0.247 | wall 32719s
+03:41:03  INFO  Synced self-play opponent snapshot at update 350
+03:41:03  INFO  Update  350/10000 | env-steps 45,875,200 | SPS 1358 (avg 1327) | pg 0.0038  vf 0.0173  ent 3.9596  clip 0.12  ev 0.015 | ep_rew 0.217 | wall 33217s
+03:41:03  INFO  Saved checkpoint → checkpoints/policy_45875200.pt
+03:49:23  INFO  Update  355/10000 | env-steps 46,530,560 | SPS 1347 (avg 1325) | pg 0.0037  vf 0.0181  ent 3.9396  clip 0.12  ev 0.015 | ep_rew 0.209 | wall 33717s
+03:57:34  INFO  Update  360/10000 | env-steps 47,185,920 | SPS 1316 (avg 1325) | pg 0.0037  vf 0.0192  ent 3.9860  clip 0.11  ev 0.015 | ep_rew 0.221 | wall 34208s
+04:05:47  INFO  Update  365/10000 | env-steps 47,841,280 | SPS 1362 (avg 1323) | pg 0.0032  vf 0.0190  ent 3.9634  clip 0.11  ev 0.015 | ep_rew 0.204 | wall 34701s
+04:14:03  INFO  Update  370/10000 | env-steps 48,496,640 | SPS 1306 (avg 1325) | pg 0.0038  vf 0.0175  ent 3.8985  clip 0.13  ev 0.015 | ep_rew 0.237 | wall 35197s
+04:22:34  INFO  Update  375/10000 | env-steps 49,152,000 | SPS 1279 (avg 1318) | pg 0.0036  vf 0.0185  ent 3.9401  clip 0.12  ev 0.015 | ep_rew 0.222 | wall 35708s
+04:30:49  INFO  Update  380/10000 | env-steps 49,807,360 | SPS 1362 (avg 1315) | pg 0.0031  vf 0.0178  ent 3.8948  clip 0.11  ev 0.015 | ep_rew 0.358 | wall 36203s
+04:38:51  INFO  Update  385/10000 | env-steps 50,462,720 | SPS 1314 (avg 1323) | pg 0.0031  vf 0.0177  ent 3.9068  clip 0.12  ev 0.015 | ep_rew 0.296 | wall 36685s
+04:47:08  INFO  Update  390/10000 | env-steps 51,118,080 | SPS 1280 (avg 1322) | pg 0.0040  vf 0.0186  ent 3.8632  clip 0.13  ev 0.015 | ep_rew 0.249 | wall 37182s
+04:55:19  INFO  Update  395/10000 | env-steps 51,773,440 | SPS 1290 (avg 1335) | pg 0.0041  vf 0.0175  ent 3.8121  clip 0.13  ev 0.015 | ep_rew 0.346 | wall 37673s
+05:03:29  INFO  Synced self-play opponent snapshot at update 400
+05:03:29  INFO  Update  400/10000 | env-steps 52,428,800 | SPS 1410 (avg 1339) | pg 0.0039  vf 0.0185  ent 3.8416  clip 0.12  ev 0.015 | ep_rew 0.249 | wall 38163s
+05:03:29  INFO  Saved checkpoint → checkpoints/policy_52428800.pt
+05:11:37  INFO  Update  405/10000 | env-steps 53,084,160 | SPS 1344 (avg 1335) | pg 0.0039  vf 0.0189  ent 3.7573  clip 0.13  ev 0.015 | ep_rew 0.292 | wall 38651s
+05:20:05  INFO  Update  410/10000 | env-steps 53,739,520 | SPS 1272 (avg 1328) | pg 0.0045  vf 0.0190  ent 3.8171  clip 0.13  ev 0.015 | ep_rew 0.330 | wall 39159s
+05:28:25  INFO  Update  415/10000 | env-steps 54,394,880 | SPS 1252 (avg 1321) | pg 0.0041  vf 0.0184  ent 3.8101  clip 0.13  ev 0.015 | ep_rew 0.293 | wall 39659s
+05:36:25  INFO  Update  420/10000 | env-steps 55,050,240 | SPS 1341 (avg 1328) | pg 0.0038  vf 0.0193  ent 3.7925  clip 0.13  ev 0.015 | ep_rew 0.309 | wall 40139s
+05:44:21  INFO  Update  425/10000 | env-steps 55,705,600 | SPS 1369 (avg 1337) | pg 0.0044  vf 0.0189  ent 3.7483  clip 0.13  ev 0.015 | ep_rew 0.292 | wall 40615s
+05:52:41  INFO  Update  430/10000 | env-steps 56,360,960 | SPS 1300 (avg 1342) | pg 0.0042  vf 0.0194  ent 3.7326  clip 0.13  ev 0.015 | ep_rew 0.355 | wall 41115s
+06:00:50  INFO  Update  435/10000 | env-steps 57,016,320 | SPS 1323 (avg 1349) | pg 0.0048  vf 0.0198  ent 3.8266  clip 0.12  ev 0.015 | ep_rew 0.247 | wall 41604s
+06:09:04  INFO  Update  440/10000 | env-steps 57,671,680 | SPS 1326 (avg 1339) | pg 0.0041  vf 0.0179  ent 3.8238  clip 0.12  ev 0.015 | ep_rew 0.375 | wall 42098s
+06:17:16  INFO  Update  445/10000 | env-steps 58,327,040 | SPS 1331 (avg 1328) | pg 0.0035  vf 0.0180  ent 3.7917  clip 0.12  ev 0.015 | ep_rew 0.307 | wall 42590s
+06:25:12  INFO  Synced self-play opponent snapshot at update 450
+06:25:12  INFO  Update  450/10000 | env-steps 58,982,400 | SPS 1331 (avg 1345) | pg 0.0038  vf 0.0173  ent 3.7814  clip 0.13  ev 0.015 | ep_rew 0.332 | wall 43066s
+06:25:12  INFO  Saved checkpoint → checkpoints/policy_58982400.pt
+06:33:18  INFO  Update  455/10000 | env-steps 59,637,760 | SPS 1381 (avg 1347) | pg 0.0040  vf 0.0184  ent 3.7619  clip 0.12  ev 0.015 | ep_rew 0.268 | wall 43552s
+06:41:22  INFO  Update  460/10000 | env-steps 60,293,120 | SPS 1366 (avg 1354) | pg 0.0037  vf 0.0175  ent 3.7919  clip 0.12  ev 0.015 | ep_rew 0.315 | wall 44036s
+06:49:24  INFO  Update  465/10000 | env-steps 60,948,480 | SPS 1347 (avg 1361) | pg 0.0040  vf 0.0185  ent 3.7938  clip 0.12  ev 0.015 | ep_rew 0.282 | wall 44518s
+06:57:34  INFO  Update  470/10000 | env-steps 61,603,840 | SPS 1347 (avg 1351) | pg 0.0038  vf 0.0181  ent 3.7417  clip 0.12  ev 0.015 | ep_rew 0.245 | wall 45008s
+07:05:44  INFO  Update  475/10000 | env-steps 62,259,200 | SPS 1348 (avg 1348) | pg 0.0038  vf 0.0195  ent 3.7408  clip 0.13  ev 0.015 | ep_rew 0.234 | wall 45498s
+07:13:50  INFO  Update  480/10000 | env-steps 62,914,560 | SPS 1376 (avg 1347) | pg 0.0038  vf 0.0180  ent 3.7234  clip 0.13  ev 0.015 | ep_rew 0.352 | wall 45984s
+07:22:05  INFO  Update  485/10000 | env-steps 63,569,920 | SPS 1252 (avg 1338) | pg 0.0044  vf 0.0183  ent 3.7335  clip 0.13  ev 0.015 | ep_rew 0.305 | wall 46479s
+07:30:25  INFO  Update  490/10000 | env-steps 64,225,280 | SPS 1305 (avg 1332) | pg 0.0045  vf 0.0180  ent 3.7315  clip 0.13  ev 0.015 | ep_rew 0.399 | wall 46979s
+07:38:40  INFO  Update  495/10000 | env-steps 64,880,640 | SPS 1265 (avg 1328) | pg 0.0036  vf 0.0180  ent 3.7296  clip 0.13  ev 0.015 | ep_rew 0.292 | wall 47473s
+07:46:46  INFO  Synced self-play opponent snapshot at update 500
+07:46:47  INFO  Update  500/10000 | env-steps 65,536,000 | SPS 1377 (avg 1327) | pg 0.0041  vf 0.0181  ent 3.7013  clip 0.13  ev 0.015 | ep_rew 0.333 | wall 47961s
+07:46:47  INFO  Saved checkpoint → checkpoints/policy_65536000.pt
+07:55:06  INFO  Update  505/10000 | env-steps 66,191,360 | SPS 1311 (avg 1324) | pg 0.0048  vf 0.0164  ent 3.7175  clip 0.13  ev 0.015 | ep_rew 0.383 | wall 48460s
+08:03:30  INFO  Update  510/10000 | env-steps 66,846,720 | SPS 1331 (avg 1322) | pg 0.0047  vf 0.0175  ent 3.7257  clip 0.14  ev 0.015 | ep_rew 0.299 | wall 48964s
+08:11:41  INFO  Update  515/10000 | env-steps 67,502,080 | SPS 1345 (avg 1324) | pg 0.0047  vf 0.0176  ent 3.7206  clip 0.13  ev 0.015 | ep_rew 0.311 | wall 49455s
+08:19:46  INFO  Update  520/10000 | env-steps 68,157,440 | SPS 1402 (avg 1326) | pg 0.0042  vf 0.0172  ent 3.6460  clip 0.14  ev 0.015 | ep_rew 0.320 | wall 49940s
+08:28:07  INFO  Update  525/10000 | env-steps 68,812,800 | SPS 1307 (avg 1324) | pg 0.0041  vf 0.0185  ent 3.6318  clip 0.14  ev 0.015 | ep_rew 0.337 | wall 50441s
+08:36:24  INFO  Update  530/10000 | env-steps 69,468,160 | SPS 1318 (avg 1329) | pg 0.0041  vf 0.0181  ent 3.6496  clip 0.13  ev 0.015 | ep_rew 0.320 | wall 50938s
+08:44:37  INFO  Update  535/10000 | env-steps 70,123,520 | SPS 1330 (avg 1328) | pg 0.0046  vf 0.0174  ent 3.6382  clip 0.13  ev 0.015 | ep_rew 0.378 | wall 51431s
+08:52:47  INFO  Update  540/10000 | env-steps 70,778,880 | SPS 1340 (avg 1324) | pg 0.0046  vf 0.0163  ent 3.6603  clip 0.13  ev 0.015 | ep_rew 0.486 | wall 51921s
+09:00:55  INFO  Update  545/10000 | env-steps 71,434,240 | SPS 1327 (avg 1334) | pg 0.0043  vf 0.0177  ent 3.6706  clip 0.13  ev 0.015 | ep_rew 0.394 | wall 52409s
+09:09:05  INFO  Synced self-play opponent snapshot at update 550
+09:09:05  INFO  Update  550/10000 | env-steps 72,089,600 | SPS 1430 (avg 1338) | pg 0.0040  vf 0.0183  ent 3.6100  clip 0.13  ev 0.015 | ep_rew 0.348 | wall 52899s
+09:09:05  INFO  Saved checkpoint → checkpoints/policy_72089600.pt
+09:17:11  INFO  Update  555/10000 | env-steps 72,744,960 | SPS 1308 (avg 1343) | pg 0.0043  vf 0.0182  ent 3.6412  clip 0.13  ev 0.015 | ep_rew 0.276 | wall 53385s
+09:25:25  INFO  Update  560/10000 | env-steps 73,400,320 | SPS 1403 (avg 1341) | pg 0.0044  vf 0.0171  ent 3.5943  clip 0.13  ev 0.015 | ep_rew 0.310 | wall 53879s
+09:33:25  INFO  Update  565/10000 | env-steps 74,055,680 | SPS 1384 (avg 1345) | pg 0.0047  vf 0.0175  ent 3.5903  clip 0.13  ev 0.015 | ep_rew 0.323 | wall 54359s
+09:41:38  INFO  Update  570/10000 | env-steps 74,711,040 | SPS 1302 (avg 1343) | pg 0.0043  vf 0.0179  ent 3.5328  clip 0.14  ev 0.015 | ep_rew 0.328 | wall 54852s
+09:50:00  INFO  Update  575/10000 | env-steps 75,366,400 | SPS 1253 (avg 1332) | pg 0.0049  vf 0.0181  ent 3.5157  clip 0.13  ev 0.015 | ep_rew 0.329 | wall 55354s
+09:58:16  INFO  Update  580/10000 | env-steps 76,021,760 | SPS 1380 (avg 1331) | pg 0.0043  vf 0.0183  ent 3.5490  clip 0.13  ev 0.015 | ep_rew 0.315 | wall 55850s
+10:06:21  INFO  Update  585/10000 | env-steps 76,677,120 | SPS 1389 (avg 1327) | pg 0.0049  vf 0.0179  ent 3.5826  clip 0.14  ev 0.015 | ep_rew 0.398 | wall 56335s
+10:14:32  INFO  Update  590/10000 | env-steps 77,332,480 | SPS 1279 (avg 1329) | pg 0.0038  vf 0.0174  ent 3.5694  clip 0.13  ev 0.015 | ep_rew 0.376 | wall 56826s
+10:22:45  INFO  Update  595/10000 | env-steps 77,987,840 | SPS 1340 (avg 1335) | pg 0.0044  vf 0.0187  ent 3.5612  clip 0.14  ev 0.015 | ep_rew 0.317 | wall 57319s
+10:30:57  INFO  Synced self-play opponent snapshot at update 600
+10:30:58  INFO  Update  600/10000 | env-steps 78,643,200 | SPS 1331 (avg 1337) | pg 0.0048  vf 0.0174  ent 3.5128  clip 0.13  ev 0.015 | ep_rew 0.381 | wall 57812s
+10:30:58  INFO  Saved checkpoint → checkpoints/policy_78643200.pt
+10:39:04  INFO  Update  605/10000 | env-steps 79,298,560 | SPS 1350 (avg 1337) | pg 0.0041  vf 0.0177  ent 3.5124  clip 0.13  ev 0.015 | ep_rew 0.357 | wall 58298s
+10:47:06  INFO  Update  610/10000 | env-steps 79,953,920 | SPS 1350 (avg 1343) | pg 0.0049  vf 0.0176  ent 3.4708  clip 0.13  ev 0.015 | ep_rew 0.337 | wall 58780s
+10:55:10  INFO  Update  615/10000 | env-steps 80,609,280 | SPS 1349 (avg 1349) | pg 0.0043  vf 0.0178  ent 3.5227  clip 0.13  ev 0.015 | ep_rew 0.289 | wall 59264s
+11:03:24  INFO  Update  620/10000 | env-steps 81,264,640 | SPS 1337 (avg 1348) | pg 0.0043  vf 0.0177  ent 3.5157  clip 0.13  ev 0.015 | ep_rew 0.421 | wall 59758s
+11:11:19  INFO  Update  625/10000 | env-steps 81,920,000 | SPS 1343 (avg 1355) | pg 0.0045  vf 0.0175  ent 3.4669  clip 0.13  ev 0.015 | ep_rew 0.352 | wall 60233s
+11:19:30  INFO  Update  630/10000 | env-steps 82,575,360 | SPS 1345 (avg 1349) | pg 0.0052  vf 0.0176  ent 3.4179  clip 0.13  ev 0.015 | ep_rew 0.362 | wall 60724s
+11:27:44  INFO  Update  635/10000 | env-steps 83,230,720 | SPS 1357 (avg 1342) | pg 0.0047  vf 0.0173  ent 3.4472  clip 0.13  ev 0.015 | ep_rew 0.366 | wall 61218s
+11:35:58  INFO  Update  640/10000 | env-steps 83,886,080 | SPS 1305 (avg 1343) | pg 0.0039  vf 0.0171  ent 3.5008  clip 0.13  ev 0.015 | ep_rew 0.372 | wall 61712s
+11:44:01  INFO  Update  645/10000 | env-steps 84,541,440 | SPS 1350 (avg 1337) | pg 0.0044  vf 0.0176  ent 3.4846  clip 0.13  ev 0.015 | ep_rew 0.444 | wall 62195s
+11:52:19  INFO  Synced self-play opponent snapshot at update 650
+11:52:19  INFO  Update  650/10000 | env-steps 85,196,800 | SPS 1336 (avg 1332) | pg 0.0049  vf 0.0178  ent 3.5181  clip 0.13  ev 0.015 | ep_rew 0.412 | wall 62693s
+11:52:19  INFO  Saved checkpoint → checkpoints/policy_85196800.pt
+12:00:29  INFO  Update  655/10000 | env-steps 85,852,160 | SPS 1383 (avg 1335) | pg 0.0045  vf 0.0182  ent 3.4937  clip 0.13  ev 0.015 | ep_rew 0.391 | wall 63183s
+12:08:46  INFO  Update  660/10000 | env-steps 86,507,520 | SPS 1318 (avg 1333) | pg 0.0044  vf 0.0180  ent 3.4037  clip 0.13  ev 0.015 | ep_rew 0.411 | wall 63680s
+12:16:49  INFO  Update  665/10000 | env-steps 87,162,880 | SPS 1349 (avg 1333) | pg 0.0043  vf 0.0171  ent 3.4510  clip 0.13  ev 0.015 | ep_rew 0.352 | wall 64163s
+12:25:01  INFO  Update  670/10000 | env-steps 87,818,240 | SPS 1364 (avg 1337) | pg 0.0050  vf 0.0176  ent 3.4081  clip 0.12  ev 0.015 | ep_rew 0.379 | wall 64654s
+12:33:07  INFO  Update  675/10000 | env-steps 88,473,600 | SPS 1357 (avg 1339) | pg 0.0044  vf 0.0171  ent 3.4273  clip 0.13  ev 0.015 | ep_rew 0.352 | wall 65141s
+12:41:06  INFO  Update  680/10000 | env-steps 89,128,960 | SPS 1356 (avg 1352) | pg 0.0041  vf 0.0170  ent 3.4391  clip 0.12  ev 0.015 | ep_rew 0.341 | wall 65620s
+12:49:10  INFO  Update  685/10000 | env-steps 89,784,320 | SPS 1330 (avg 1351) | pg 0.0048  vf 0.0174  ent 3.4200  clip 0.13  ev 0.015 | ep_rew 0.379 | wall 66104s
+12:57:16  INFO  Update  690/10000 | env-steps 90,439,680 | SPS 1343 (avg 1356) | pg 0.0049  vf 0.0167  ent 3.3857  clip 0.13  ev 0.015 | ep_rew 0.379 | wall 66590s
+13:05:16  INFO  Update  695/10000 | env-steps 91,095,040 | SPS 1358 (avg 1361) | pg 0.0044  vf 0.0175  ent 3.4164  clip 0.13  ev 0.015 | ep_rew 0.417 | wall 67070s
+13:13:36  INFO  Synced self-play opponent snapshot at update 700
+13:13:36  INFO  Update  700/10000 | env-steps 91,750,400 | SPS 1317 (avg 1346) | pg 0.0039  vf 0.0168  ent 3.4725  clip 0.12  ev 0.015 | ep_rew 0.341 | wall 67570s
+13:13:36  INFO  Saved checkpoint → checkpoints/policy_91750400.pt
+13:21:55  INFO  Update  705/10000 | env-steps 92,405,760 | SPS 1294 (avg 1337) | pg 0.0043  vf 0.0169  ent 3.4558  clip 0.12  ev 0.015 | ep_rew 0.369 | wall 68069s
+13:30:20  INFO  Update  710/10000 | env-steps 93,061,120 | SPS 1308 (avg 1324) | pg 0.0037  vf 0.0173  ent 3.4186  clip 0.13  ev 0.015 | ep_rew 0.347 | wall 68574s
+13:40:26  INFO  Update  715/10000 | env-steps 93,716,480 | SPS 878 (avg 1261) | pg 0.0046  vf 0.0186  ent 3.4062  clip 0.13  ev 0.015 | ep_rew 0.403 | wall 69180s
+14:09:49  INFO  Update  720/10000 | env-steps 94,371,840 | SPS 324 (avg 1044) | pg 0.0049  vf 0.0170  ent 3.3549  clip 0.13  ev 0.015 | ep_rew 0.351 | wall 70943s
+14:42:42  INFO  Update  725/10000 | env-steps 95,027,200 | SPS 327 (avg 798) | pg 0.0048  vf 0.0180  ent 3.3865  clip 0.13  ev 0.015 | ep_rew 0.345 | wall 72916s
+14:56:06  INFO  Update  730/10000 | env-steps 95,682,560 | SPS 1353 (avg 737) | pg 0.0048  vf 0.0177  ent 3.3613  clip 0.13  ev 0.015 | ep_rew 0.366 | wall 73720s
+15:04:12  INFO  Update  735/10000 | env-steps 96,337,920 | SPS 1392 (avg 796) | pg 0.0049  vf 0.0164  ent 3.3946  clip 0.13  ev 0.015 | ep_rew 0.402 | wall 74206s
+15:29:38  INFO  Update  740/10000 | env-steps 96,993,280 | SPS 326 (avg 831) | pg 0.0051  vf 0.0167  ent 3.3961  clip 0.13  ev 0.015 | ep_rew 0.391 | wall 75732s
+16:00:24  INFO  Update  745/10000 | env-steps 97,648,640 | SPS 418 (avg 837) | pg 0.0044  vf 0.0170  ent 3.4210  clip 0.13  ev 0.015 | ep_rew 0.476 | wall 77578s
+16:27:12  INFO  Synced self-play opponent snapshot at update 750
+16:27:12  INFO  Update  750/10000 | env-steps 98,304,000 | SPS 336 (avg 678) | pg 0.0048  vf 0.0169  ent 3.3755  clip 0.13  ev 0.015 | ep_rew 0.443 | wall 79186s
+16:27:12  INFO  Saved checkpoint → checkpoints/policy_98304000.pt
+17:00:10  INFO  Update  755/10000 | env-steps 98,959,360 | SPS 322 (avg 423) | pg 0.0045  vf 0.0165  ent 3.3496  clip 0.13  ev 0.015 | ep_rew 0.329 | wall 81164s
+17:09:05  INFO  Update  760/10000 | env-steps 99,614,720 | SPS 1312 (avg 589) | pg 0.0051  vf 0.0167  ent 3.3276  clip 0.14  ev 0.015 | ep_rew 0.349 | wall 81699s
+17:17:14  INFO  Update  765/10000 | env-steps 100,270,080 | SPS 1340 (avg 834) | pg 0.0052  vf 0.0175  ent 3.3321  clip 0.14  ev 0.015 | ep_rew 0.378 | wall 82188s
+17:25:16  INFO  Update  770/10000 | env-steps 100,925,440 | SPS 1377 (avg 1069) | pg 0.0046  vf 0.0174  ent 3.3669  clip 0.14  ev 0.015 | ep_rew 0.360 | wall 82670s
+17:35:55  INFO  Update  775/10000 | env-steps 101,580,800 | SPS 704 (avg 1266) | pg 0.0051  vf 0.0175  ent 3.3596  clip 0.14  ev 0.015 | ep_rew 0.315 | wall 83309s
+17:49:19  INFO  Update  780/10000 | env-steps 102,236,160 | SPS 941 (avg 1162) | pg 0.0050  vf 0.0178  ent 3.3788  clip 0.13  ev 0.015 | ep_rew 0.375 | wall 84113s
+18:00:22  INFO  Update  785/10000 | env-steps 102,891,520 | SPS 1119 (avg 1075) | pg 0.0046  vf 0.0162  ent 3.4099  clip 0.13  ev 0.015 | ep_rew 0.399 | wall 84776s
+18:09:20  INFO  Update  790/10000 | env-steps 103,546,880 | SPS 1298 (avg 1040) | pg 0.0048  vf 0.0176  ent 3.3749  clip 0.13  ev 0.015 | ep_rew 0.362 | wall 85314s
+18:17:04  INFO  Update  795/10000 | env-steps 104,202,240 | SPS 1423 (avg 1114) | pg 0.0045  vf 0.0171  ent 3.3999  clip 0.12  ev 0.015 | ep_rew 0.371 | wall 85778s
+18:25:06  INFO  Synced self-play opponent snapshot at update 800
+18:25:06  INFO  Update  800/10000 | env-steps 104,857,600 | SPS 1369 (avg 1248) | pg 0.0051  vf 0.0165  ent 3.4005  clip 0.12  ev 0.015 | ep_rew 0.400 | wall 86260s
+18:25:06  INFO  Saved checkpoint → checkpoints/policy_104857600.pt
+18:33:04  INFO  Update  805/10000 | env-steps 105,512,960 | SPS 1438 (avg 1343) | pg 0.0042  vf 0.0178  ent 3.4239  clip 0.12  ev 0.015 | ep_rew 0.367 | wall 86738s
+18:41:05  INFO  Update  810/10000 | env-steps 106,168,320 | SPS 1351 (avg 1377) | pg 0.0041  vf 0.0170  ent 3.4280  clip 0.12  ev 0.015 | ep_rew 0.313 | wall 87219s
+18:49:00  INFO  Update  815/10000 | env-steps 106,823,680 | SPS 1324 (avg 1369) | pg 0.0042  vf 0.0170  ent 3.4517  clip 0.12  ev 0.015 | ep_rew 0.405 | wall 87694s
+18:57:03  INFO  Update  820/10000 | env-steps 107,479,040 | SPS 1382 (avg 1369) | pg 0.0046  vf 0.0165  ent 3.4030  clip 0.12  ev 0.015 | ep_rew 0.425 | wall 88177s
+19:05:18  INFO  Update  825/10000 | env-steps 108,134,400 | SPS 1282 (avg 1357) | pg 0.0056  vf 0.0167  ent 3.3531  clip 0.14  ev 0.015 | ep_rew 0.376 | wall 88671s
+19:13:56  INFO  Update  830/10000 | env-steps 108,789,760 | SPS 1290 (avg 1332) | pg 0.0047  vf 0.0172  ent 3.3813  clip 0.13  ev 0.015 | ep_rew 0.438 | wall 89190s
+19:22:27  INFO  Update  835/10000 | env-steps 109,445,120 | SPS 1266 (avg 1308) | pg 0.0044  vf 0.0158  ent 3.3929  clip 0.13  ev 0.015 | ep_rew 0.361 | wall 89701s
+19:30:46  INFO  Update  840/10000 | env-steps 110,100,480 | SPS 1367 (avg 1297) | pg 0.0041  vf 0.0164  ent 3.3918  clip 0.13  ev 0.015 | ep_rew 0.377 | wall 90200s
+19:43:45  INFO  Update  845/10000 | env-steps 110,755,840 | SPS 688 (avg 1196) | pg 0.0045  vf 0.0176  ent 3.3910  clip 0.13  ev 0.015 | ep_rew 0.418 | wall 90979s
+19:59:53  INFO  Synced self-play opponent snapshot at update 850
+19:59:53  INFO  Update  850/10000 | env-steps 111,411,200 | SPS 659 (avg 1050) | pg 0.0050  vf 0.0172  ent 3.3966  clip 0.12  ev 0.015 | ep_rew 0.360 | wall 91947s
+19:59:54  INFO  Saved checkpoint → checkpoints/policy_111411200.pt
+20:12:03  INFO  Update  855/10000 | env-steps 112,066,560 | SPS 947 (avg 957) | pg 0.0045  vf 0.0163  ent 3.4182  clip 0.12  ev 0.015 | ep_rew 0.276 | wall 92676s
+20:21:58  INFO  Update  860/10000 | env-steps 112,721,920 | SPS 1237 (avg 907) | pg 0.0040  vf 0.0160  ent 3.4156  clip 0.12  ev 0.015 | ep_rew 0.280 | wall 93272s
+20:30:12  INFO  Update  865/10000 | env-steps 113,377,280 | SPS 1308 (avg 1008) | pg 0.0040  vf 0.0169  ent 3.3747  clip 0.12  ev 0.015 | ep_rew 0.454 | wall 93766s
+20:38:05  INFO  Update  870/10000 | env-steps 114,032,640 | SPS 1412 (avg 1185) | pg 0.0047  vf 0.0179  ent 3.4155  clip 0.12  ev 0.015 | ep_rew 0.336 | wall 94239s
+20:45:59  INFO  Update  875/10000 | env-steps 114,688,000 | SPS 1344 (avg 1303) | pg 0.0039  vf 0.0175  ent 3.3969  clip 0.12  ev 0.015 | ep_rew 0.305 | wall 94713s
+20:54:06  INFO  Update  880/10000 | env-steps 115,343,360 | SPS 1311 (avg 1361) | pg 0.0044  vf 0.0171  ent 3.3806  clip 0.12  ev 0.015 | ep_rew 0.383 | wall 95200s
+21:02:07  INFO  Update  885/10000 | env-steps 115,998,720 | SPS 1351 (avg 1369) | pg 0.0041  vf 0.0164  ent 3.3335  clip 0.13  ev 0.015 | ep_rew 0.398 | wall 95681s
+21:10:07  INFO  Update  890/10000 | env-steps 116,654,080 | SPS 1340 (avg 1364) | pg 0.0044  vf 0.0155  ent 3.3562  clip 0.12  ev 0.015 | ep_rew 0.415 | wall 96161s
+21:18:24  INFO  Update  895/10000 | env-steps 117,309,440 | SPS 1317 (avg 1349) | pg 0.0048  vf 0.0162  ent 3.2627  clip 0.13  ev 0.015 | ep_rew 0.413 | wall 96658s
+21:26:42  INFO  Synced self-play opponent snapshot at update 900
+21:26:42  INFO  Update  900/10000 | env-steps 117,964,800 | SPS 1334 (avg 1341) | pg 0.0043  vf 0.0167  ent 3.3339  clip 0.13  ev 0.015 | ep_rew 0.467 | wall 97156s
+21:26:42  INFO  Saved checkpoint → checkpoints/policy_117964800.pt
+21:34:50  INFO  Update  905/10000 | env-steps 118,620,160 | SPS 1383 (avg 1337) | pg 0.0052  vf 0.0168  ent 3.3487  clip 0.13  ev 0.015 | ep_rew 0.414 | wall 97643s
+21:42:44  INFO  Update  910/10000 | env-steps 119,275,520 | SPS 1405 (avg 1340) | pg 0.0048  vf 0.0151  ent 3.2851  clip 0.13  ev 0.015 | ep_rew 0.365 | wall 98118s
+21:51:03  INFO  Update  915/10000 | env-steps 119,930,880 | SPS 1354 (avg 1339) | pg 0.0047  vf 0.0169  ent 3.2755  clip 0.13  ev 0.015 | ep_rew 0.432 | wall 98617s
+21:59:11  INFO  Update  920/10000 | env-steps 120,586,240 | SPS 1297 (avg 1346) | pg 0.0044  vf 0.0165  ent 3.2623  clip 0.13  ev 0.015 | ep_rew 0.410 | wall 99105s
+22:09:25  INFO  Update  925/10000 | env-steps 121,241,600 | SPS 1131 (avg 1279) | pg 0.0039  vf 0.0171  ent 3.2738  clip 0.13  ev 0.015 | ep_rew 0.442 | wall 99719s
+22:19:05  INFO  Update  930/10000 | env-steps 121,896,960 | SPS 1103 (avg 1217) | pg 0.0045  vf 0.0161  ent 3.2879  clip 0.13  ev 0.015 | ep_rew 0.512 | wall 100299s
+22:28:36  INFO  Update  935/10000 | env-steps 122,552,320 | SPS 1155 (avg 1175) | pg 0.0047  vf 0.0156  ent 3.3409  clip 0.13  ev 0.015 | ep_rew 0.389 | wall 100870s
+22:38:16  INFO  Update  940/10000 | env-steps 123,207,680 | SPS 1100 (avg 1122) | pg 0.0049  vf 0.0169  ent 3.2825  clip 0.13  ev 0.015 | ep_rew 0.406 | wall 101450s
+22:47:54  INFO  Update  945/10000 | env-steps 123,863,040 | SPS 1159 (avg 1136) | pg 0.0054  vf 0.0163  ent 3.3105  clip 0.13  ev 0.015 | ep_rew 0.417 | wall 102028s
+22:57:18  INFO  Synced self-play opponent snapshot at update 950
+22:57:18  INFO  Update  950/10000 | env-steps 124,518,400 | SPS 1194 (avg 1143) | pg 0.0045  vf 0.0170  ent 3.3417  clip 0.12  ev 0.015 | ep_rew 0.381 | wall 102592s
+22:57:18  INFO  Saved checkpoint → checkpoints/policy_124518400.pt
+23:06:56  INFO  Update  955/10000 | env-steps 125,173,760 | SPS 1135 (avg 1140) | pg 0.0037  vf 0.0165  ent 3.3466  clip 0.13  ev 0.015 | ep_rew 0.405 | wall 103170s
+23:16:40  INFO  Update  960/10000 | env-steps 125,829,120 | SPS 1110 (avg 1139) | pg 0.0041  vf 0.0168  ent 3.3053  clip 0.12  ev 0.015 | ep_rew 0.400 | wall 103754s
+23:26:22  INFO  Update  965/10000 | env-steps 126,484,480 | SPS 1157 (avg 1137) | pg 0.0042  vf 0.0168  ent 3.3660  clip 0.12  ev 0.015 | ep_rew 0.390 | wall 104335s
+23:36:08  INFO  Update  970/10000 | env-steps 127,139,840 | SPS 1147 (avg 1126) | pg 0.0047  vf 0.0170  ent 3.3235  clip 0.13  ev 0.015 | ep_rew 0.417 | wall 104922s
+23:45:06  INFO  Update  975/10000 | env-steps 127,795,200 | SPS 1292 (avg 1147) | pg 0.0047  vf 0.0163  ent 3.3352  clip 0.13  ev 0.015 | ep_rew 0.326 | wall 105460s
+23:53:32  INFO  Update  980/10000 | env-steps 128,450,560 | SPS 1277 (avg 1191) | pg 0.0046  vf 0.0161  ent 3.2799  clip 0.12  ev 0.015 | ep_rew 0.429 | wall 105966s
+00:01:39  INFO  Update  985/10000 | env-steps 129,105,920 | SPS 1362 (avg 1245) | pg 0.0041  vf 0.0158  ent 3.2989  clip 0.12  ev 0.015 | ep_rew 0.302 | wall 106453s
+00:09:57  INFO  Update  990/10000 | env-steps 129,761,280 | SPS 1310 (avg 1294) | pg 0.0043  vf 0.0164  ent 3.3862  clip 0.11  ev 0.015 | ep_rew 0.342 | wall 106951s
+00:20:24  INFO  Update  995/10000 | env-steps 130,416,640 | SPS 1063 (avg 1252) | pg 0.0040  vf 0.0158  ent 3.3670  clip 0.12  ev 0.015 | ep_rew 0.423 | wall 107578s
+00:30:32  INFO  Synced self-play opponent snapshot at update 1000
+00:30:32  INFO  Update 1000/10000 | env-steps 131,072,000 | SPS 1160 (avg 1197) | pg 0.0039  vf 0.0160  ent 3.3272  clip 0.12  ev 0.015 | ep_rew 0.357 | wall 108186s
+00:30:32  INFO  Saved checkpoint → checkpoints/policy_131072000.pt
+00:40:05  INFO  Update 1005/10000 | env-steps 131,727,360 | SPS 1097 (avg 1148) | pg 0.0039  vf 0.0156  ent 3.4049  clip 0.11  ev 0.015 | ep_rew 0.367 | wall 108759s
+00:49:31  INFO  Update 1010/10000 | env-steps 132,382,720 | SPS 1151 (avg 1108) | pg 0.0036  vf 0.0161  ent 3.3973  clip 0.11  ev 0.015 | ep_rew 0.423 | wall 109325s
+00:59:00  INFO  Update 1015/10000 | env-steps 133,038,080 | SPS 1091 (avg 1134) | pg 0.0040  vf 0.0167  ent 3.3832  clip 0.12  ev 0.015 | ep_rew 0.434 | wall 109894s
+01:08:54  INFO  Update 1020/10000 | env-steps 133,693,440 | SPS 1081 (avg 1140) | pg 0.0041  vf 0.0160  ent 3.4081  clip 0.11  ev 0.015 | ep_rew 0.338 | wall 110488s
+01:18:19  INFO  Update 1025/10000 | env-steps 134,348,800 | SPS 1215 (avg 1145) | pg 0.0043  vf 0.0174  ent 3.3737  clip 0.12  ev 0.015 | ep_rew 0.383 | wall 111053s
+01:26:46  INFO  Update 1030/10000 | env-steps 135,004,160 | SPS 1279 (avg 1179) | pg 0.0038  vf 0.0162  ent 3.4278  clip 0.12  ev 0.015 | ep_rew 0.377 | wall 111560s
+01:35:28  INFO  Update 1035/10000 | env-steps 135,659,520 | SPS 1276 (avg 1204) | pg 0.0036  vf 0.0169  ent 3.4275  clip 0.11  ev 0.015 | ep_rew 0.459 | wall 112082s
+01:43:41  INFO  Update 1040/10000 | env-steps 136,314,880 | SPS 1315 (avg 1261) | pg 0.0038  vf 0.0162  ent 3.3803  clip 0.11  ev 0.015 | ep_rew 0.400 | wall 112575s
+01:52:03  INFO  Update 1045/10000 | env-steps 136,970,240 | SPS 1279 (avg 1297) | pg 0.0036  vf 0.0152  ent 3.4195  clip 0.11  ev 0.015 | ep_rew 0.442 | wall 113077s
+02:00:09  INFO  Synced self-play opponent snapshot at update 1050
+02:00:09  INFO  Update 1050/10000 | env-steps 137,625,600 | SPS 1375 (avg 1311) | pg 0.0040  vf 0.0162  ent 3.4061  clip 0.11  ev 0.015 | ep_rew 0.401 | wall 113563s
+02:00:09  INFO  Saved checkpoint → checkpoints/policy_137625600.pt
+02:08:12  INFO  Update 1055/10000 | env-steps 138,280,960 | SPS 1406 (avg 1336) | pg 0.0037  vf 0.0167  ent 3.4272  clip 0.11  ev 0.015 | ep_rew 0.381 | wall 114045s
+02:16:05  INFO  Update 1060/10000 | env-steps 138,936,320 | SPS 1298 (avg 1351) | pg 0.0038  vf 0.0169  ent 3.4107  clip 0.11  ev 0.015 | ep_rew 0.450 | wall 114519s
+02:23:59  INFO  Update 1065/10000 | env-steps 139,591,680 | SPS 1361 (avg 1369) | pg 0.0036  vf 0.0170  ent 3.4244  clip 0.11  ev 0.015 | ep_rew 0.364 | wall 114993s
+02:32:12  INFO  Update 1070/10000 | env-steps 140,247,040 | SPS 1286 (avg 1364) | pg 0.0040  vf 0.0175  ent 3.4432  clip 0.11  ev 0.015 | ep_rew 0.385 | wall 115486s
+02:40:20  INFO  Update 1075/10000 | env-steps 140,902,400 | SPS 1389 (avg 1361) | pg 0.0042  vf 0.0165  ent 3.4414  clip 0.11  ev 0.015 | ep_rew 0.436 | wall 115974s
+02:48:36  INFO  Update 1080/10000 | env-steps 141,557,760 | SPS 1294 (avg 1344) | pg 0.0037  vf 0.0166  ent 3.3318  clip 0.11  ev 0.015 | ep_rew 0.434 | wall 116470s
+02:56:36  INFO  Update 1085/10000 | env-steps 142,213,120 | SPS 1393 (avg 1340) | pg 0.0050  vf 0.0175  ent 3.3599  clip 0.12  ev 0.015 | ep_rew 0.396 | wall 116950s
+03:05:34  INFO  Update 1090/10000 | env-steps 142,868,480 | SPS 1112 (avg 1315) | pg 0.0038  vf 0.0165  ent 3.3668  clip 0.11  ev 0.015 | ep_rew 0.428 | wall 117488s
+03:15:13  INFO  Update 1095/10000 | env-steps 143,523,840 | SPS 1080 (avg 1262) | pg 0.0039  vf 0.0176  ent 3.3519  clip 0.11  ev 0.015 | ep_rew 0.332 | wall 118067s
+03:24:53  INFO  Synced self-play opponent snapshot at update 1100
+03:24:54  INFO  Update 1100/10000 | env-steps 144,179,200 | SPS 1118 (avg 1214) | pg 0.0035  vf 0.0165  ent 3.3743  clip 0.11  ev 0.015 | ep_rew 0.421 | wall 118647s
+03:24:54  INFO  Saved checkpoint → checkpoints/policy_144179200.pt
+03:34:27  INFO  Update 1105/10000 | env-steps 144,834,560 | SPS 1104 (avg 1159) | pg 0.0041  vf 0.0174  ent 3.3708  clip 0.11  ev 0.015 | ep_rew 0.425 | wall 119221s
+03:43:49  INFO  Update 1110/10000 | env-steps 145,489,920 | SPS 1133 (avg 1143) | pg 0.0032  vf 0.0175  ent 3.3706  clip 0.11  ev 0.015 | ep_rew 0.382 | wall 119783s
+03:53:39  INFO  Update 1115/10000 | env-steps 146,145,280 | SPS 1093 (avg 1138) | pg 0.0037  vf 0.0160  ent 3.3691  clip 0.11  ev 0.015 | ep_rew 0.426 | wall 120373s
+04:03:20  INFO  Update 1120/10000 | env-steps 146,800,640 | SPS 1171 (avg 1138) | pg 0.0036  vf 0.0170  ent 3.4498  clip 0.11  ev 0.015 | ep_rew 0.451 | wall 120954s
+04:13:06  INFO  Update 1125/10000 | env-steps 147,456,000 | SPS 1148 (avg 1131) | pg 0.0043  vf 0.0176  ent 3.3594  clip 0.11  ev 0.015 | ep_rew 0.430 | wall 121540s
+04:22:51  INFO  Update 1130/10000 | env-steps 148,111,360 | SPS 1127 (avg 1120) | pg 0.0038  vf 0.0169  ent 3.3832  clip 0.11  ev 0.015 | ep_rew 0.436 | wall 122124s
+04:32:36  INFO  Update 1135/10000 | env-steps 148,766,720 | SPS 1103 (avg 1122) | pg 0.0037  vf 0.0166  ent 3.3603  clip 0.11  ev 0.015 | ep_rew 0.420 | wall 122710s
+04:42:18  INFO  Update 1140/10000 | env-steps 149,422,080 | SPS 1083 (avg 1122) | pg 0.0038  vf 0.0167  ent 3.3539  clip 0.12  ev 0.015 | ep_rew 0.531 | wall 123292s
+04:51:47  INFO  Update 1145/10000 | env-steps 150,077,440 | SPS 1116 (avg 1130) | pg 0.0039  vf 0.0168  ent 3.3397  clip 0.11  ev 0.015 | ep_rew 0.490 | wall 123861s
+05:01:23  INFO  Synced self-play opponent snapshot at update 1150
+05:01:23  INFO  Update 1150/10000 | env-steps 150,732,800 | SPS 1130 (avg 1134) | pg 0.0040  vf 0.0179  ent 3.3218  clip 0.12  ev 0.015 | ep_rew 0.393 | wall 124437s
+05:01:23  INFO  Saved checkpoint → checkpoints/policy_150732800.pt
+05:10:51  INFO  Update 1155/10000 | env-steps 151,388,160 | SPS 1194 (avg 1143) | pg 0.0036  vf 0.0160  ent 3.3082  clip 0.11  ev 0.015 | ep_rew 0.397 | wall 125005s
+05:19:49  INFO  Update 1160/10000 | env-steps 152,043,520 | SPS 1168 (avg 1166) | pg 0.0042  vf 0.0167  ent 3.2885  clip 0.11  ev 0.015 | ep_rew 0.421 | wall 125543s
+05:28:32  INFO  Update 1165/10000 | env-steps 152,698,880 | SPS 1224 (avg 1192) | pg 0.0039  vf 0.0161  ent 3.3369  clip 0.11  ev 0.015 | ep_rew 0.422 | wall 126066s
+05:36:43  INFO  Update 1170/10000 | env-steps 153,354,240 | SPS 1395 (avg 1241) | pg 0.0046  vf 0.0165  ent 3.2612  clip 0.12  ev 0.015 | ep_rew 0.381 | wall 126557s
+05:44:36  INFO  Update 1175/10000 | env-steps 154,009,600 | SPS 1342 (avg 1299) | pg 0.0038  vf 0.0162  ent 3.2856  clip 0.11  ev 0.015 | ep_rew 0.449 | wall 127030s
+05:52:44  INFO  Update 1180/10000 | env-steps 154,664,960 | SPS 1319 (avg 1330) | pg 0.0039  vf 0.0156  ent 3.2579  clip 0.12  ev 0.015 | ep_rew 0.382 | wall 127518s
+06:00:44  INFO  Update 1185/10000 | env-steps 155,320,320 | SPS 1387 (avg 1358) | pg 0.0034  vf 0.0162  ent 3.2637  clip 0.12  ev 0.015 | ep_rew 0.408 | wall 127998s
+06:08:36  INFO  Update 1190/10000 | env-steps 155,975,680 | SPS 1370 (avg 1371) | pg 0.0044  vf 0.0160  ent 3.3158  clip 0.12  ev 0.015 | ep_rew 0.413 | wall 128470s
+06:16:28  INFO  Update 1195/10000 | env-steps 156,631,040 | SPS 1339 (avg 1372) | pg 0.0041  vf 0.0160  ent 3.2785  clip 0.11  ev 0.015 | ep_rew 0.475 | wall 128942s
+06:24:35  INFO  Synced self-play opponent snapshot at update 1200
+06:24:36  INFO  Update 1200/10000 | env-steps 157,286,400 | SPS 1353 (avg 1372) | pg 0.0037  vf 0.0159  ent 3.3285  clip 0.11  ev 0.015 | ep_rew 0.418 | wall 129429s
+06:24:36  INFO  Saved checkpoint → checkpoints/policy_157286400.pt
+06:32:42  INFO  Update 1205/10000 | env-steps 157,941,760 | SPS 1318 (avg 1368) | pg 0.0038  vf 0.0165  ent 3.3480  clip 0.11  ev 0.015 | ep_rew 0.462 | wall 129915s
+06:40:40  INFO  Update 1210/10000 | env-steps 158,597,120 | SPS 1299 (avg 1364) | pg 0.0031  vf 0.0168  ent 3.3282  clip 0.11  ev 0.015 | ep_rew 0.411 | wall 130394s
+06:48:44  INFO  Update 1215/10000 | env-steps 159,252,480 | SPS 1377 (avg 1355) | pg 0.0039  vf 0.0155  ent 3.3470  clip 0.10  ev 0.015 | ep_rew 0.387 | wall 130878s
+06:56:51  INFO  Update 1220/10000 | env-steps 159,907,840 | SPS 1373 (avg 1356) | pg 0.0037  vf 0.0154  ent 3.2880  clip 0.11  ev 0.015 | ep_rew 0.460 | wall 131364s
+07:04:49  INFO  Update 1225/10000 | env-steps 160,563,200 | SPS 1372 (avg 1361) | pg 0.0044  vf 0.0167  ent 3.3418  clip 0.11  ev 0.015 | ep_rew 0.404 | wall 131843s
+07:12:44  INFO  Update 1230/10000 | env-steps 161,218,560 | SPS 1416 (avg 1363) | pg 0.0039  vf 0.0166  ent 3.2600  clip 0.12  ev 0.015 | ep_rew 0.398 | wall 132318s
+07:20:59  INFO  Update 1235/10000 | env-steps 161,873,920 | SPS 1301 (avg 1356) | pg 0.0040  vf 0.0172  ent 3.2633  clip 0.11  ev 0.015 | ep_rew 0.419 | wall 132813s
+07:29:15  INFO  Update 1240/10000 | env-steps 162,529,280 | SPS 1281 (avg 1349) | pg 0.0045  vf 0.0165  ent 3.2759  clip 0.11  ev 0.015 | ep_rew 0.420 | wall 133309s
+07:37:17  INFO  Update 1245/10000 | env-steps 163,184,640 | SPS 1398 (avg 1347) | pg 0.0039  vf 0.0162  ent 3.2623  clip 0.12  ev 0.015 | ep_rew 0.501 | wall 133791s
+07:45:17  INFO  Synced self-play opponent snapshot at update 1250
+07:45:17  INFO  Update 1250/10000 | env-steps 163,840,000 | SPS 1314 (avg 1345) | pg 0.0040  vf 0.0157  ent 3.2311  clip 0.12  ev 0.015 | ep_rew 0.441 | wall 134271s
+07:45:17  INFO  Saved checkpoint → checkpoints/policy_163840000.pt
+07:53:20  INFO  Update 1255/10000 | env-steps 164,495,360 | SPS 1350 (avg 1353) | pg 0.0036  vf 0.0156  ent 3.2516  clip 0.12  ev 0.015 | ep_rew 0.419 | wall 134754s
+08:01:22  INFO  Update 1260/10000 | env-steps 165,150,720 | SPS 1409 (avg 1362) | pg 0.0044  vf 0.0162  ent 3.2866  clip 0.12  ev 0.015 | ep_rew 0.444 | wall 135236s
+08:09:33  INFO  Update 1265/10000 | env-steps 165,806,080 | SPS 1336 (avg 1355) | pg 0.0044  vf 0.0158  ent 3.2470  clip 0.12  ev 0.015 | ep_rew 0.433 | wall 135727s
+08:17:47  INFO  Update 1270/10000 | env-steps 166,461,440 | SPS 1374 (avg 1345) | pg 0.0041  vf 0.0166  ent 3.1943  clip 0.12  ev 0.015 | ep_rew 0.372 | wall 136221s
+08:25:50  INFO  Update 1275/10000 | env-steps 167,116,800 | SPS 1396 (avg 1346) | pg 0.0047  vf 0.0163  ent 3.2207  clip 0.12  ev 0.015 | ep_rew 0.403 | wall 136704s
+08:34:00  INFO  Update 1280/10000 | env-steps 167,772,160 | SPS 1345 (avg 1340) | pg 0.0044  vf 0.0157  ent 3.1869  clip 0.12  ev 0.015 | ep_rew 0.489 | wall 137194s
+08:41:57  INFO  Update 1285/10000 | env-steps 168,427,520 | SPS 1396 (avg 1349) | pg 0.0041  vf 0.0159  ent 3.2415  clip 0.11  ev 0.015 | ep_rew 0.394 | wall 137671s
+08:49:54  INFO  Update 1290/10000 | env-steps 169,082,880 | SPS 1309 (avg 1361) | pg 0.0033  vf 0.0154  ent 3.2187  clip 0.11  ev 0.015 | ep_rew 0.488 | wall 138148s
+08:57:49  INFO  Update 1295/10000 | env-steps 169,738,240 | SPS 1331 (avg 1367) | pg 0.0046  vf 0.0147  ent 3.1900  clip 0.11  ev 0.015 | ep_rew 0.517 | wall 138623s
+09:05:43  INFO  Synced self-play opponent snapshot at update 1300
+09:05:43  INFO  Update 1300/10000 | env-steps 170,393,600 | SPS 1389 (avg 1378) | pg 0.0040  vf 0.0159  ent 3.2294  clip 0.11  ev 0.015 | ep_rew 0.410 | wall 139097s
+09:05:43  INFO  Saved checkpoint → checkpoints/policy_170393600.pt
+09:14:09  INFO  Update 1305/10000 | env-steps 171,048,960 | SPS 1278 (avg 1359) | pg 0.0040  vf 0.0157  ent 3.1446  clip 0.12  ev 0.015 | ep_rew 0.458 | wall 139603s
+09:22:06  INFO  Update 1310/10000 | env-steps 171,704,320 | SPS 1385 (avg 1358) | pg 0.0036  vf 0.0171  ent 3.2160  clip 0.12  ev 0.015 | ep_rew 0.469 | wall 140080s
+09:30:01  INFO  Update 1315/10000 | env-steps 172,359,680 | SPS 1362 (avg 1358) | pg 0.0040  vf 0.0166  ent 3.2148  clip 0.12  ev 0.015 | ep_rew 0.437 | wall 140555s
+09:37:58  INFO  Update 1320/10000 | env-steps 173,015,040 | SPS 1391 (avg 1356) | pg 0.0041  vf 0.0158  ent 3.2219  clip 0.11  ev 0.015 | ep_rew 0.454 | wall 141032s
+09:45:52  INFO  Update 1325/10000 | env-steps 173,670,400 | SPS 1378 (avg 1378) | pg 0.0038  vf 0.0158  ent 3.1423  clip 0.11  ev 0.015 | ep_rew 0.496 | wall 141506s
+09:53:57  INFO  Update 1330/10000 | env-steps 174,325,760 | SPS 1373 (avg 1373) | pg 0.0037  vf 0.0160  ent 3.1889  clip 0.11  ev 0.015 | ep_rew 0.470 | wall 141991s
+10:01:54  INFO  Update 1335/10000 | env-steps 174,981,120 | SPS 1416 (avg 1372) | pg 0.0044  vf 0.0156  ent 3.1853  clip 0.11  ev 0.015 | ep_rew 0.384 | wall 142467s
+10:10:04  INFO  Update 1340/10000 | env-steps 175,636,480 | SPS 1290 (avg 1363) | pg 0.0041  vf 0.0161  ent 3.1416  clip 0.11  ev 0.015 | ep_rew 0.478 | wall 142958s
+10:18:04  INFO  Update 1345/10000 | env-steps 176,291,840 | SPS 1356 (avg 1358) | pg 0.0036  vf 0.0153  ent 3.1399  clip 0.11  ev 0.015 | ep_rew 0.450 | wall 143438s
+10:25:59  INFO  Synced self-play opponent snapshot at update 1350
+10:25:59  INFO  Update 1350/10000 | env-steps 176,947,200 | SPS 1402 (avg 1365) | pg 0.0051  vf 0.0160  ent 3.1187  clip 0.12  ev 0.015 | ep_rew 0.460 | wall 143913s
+10:25:59  INFO  Saved checkpoint → checkpoints/policy_176947200.pt
+10:34:06  INFO  Update 1355/10000 | env-steps 177,602,560 | SPS 1307 (avg 1358) | pg 0.0045  vf 0.0156  ent 3.1569  clip 0.12  ev 0.015 | ep_rew 0.521 | wall 144399s
+10:42:15  INFO  Update 1360/10000 | env-steps 178,257,920 | SPS 1374 (avg 1359) | pg 0.0041  vf 0.0156  ent 3.0856  clip 0.12  ev 0.015 | ep_rew 0.462 | wall 144889s
+10:50:07  INFO  Update 1365/10000 | env-steps 178,913,280 | SPS 1423 (avg 1364) | pg 0.0048  vf 0.0157  ent 3.0954  clip 0.12  ev 0.015 | ep_rew 0.497 | wall 145361s
+10:58:13  INFO  Update 1370/10000 | env-steps 179,568,640 | SPS 1340 (avg 1357) | pg 0.0039  vf 0.0166  ent 3.0754  clip 0.12  ev 0.015 | ep_rew 0.473 | wall 145847s
+11:06:11  INFO  Update 1375/10000 | env-steps 180,224,000 | SPS 1318 (avg 1363) | pg 0.0037  vf 0.0155  ent 3.1010  clip 0.12  ev 0.015 | ep_rew 0.514 | wall 146325s
+11:14:03  INFO  Update 1380/10000 | env-steps 180,879,360 | SPS 1365 (avg 1375) | pg 0.0044  vf 0.0156  ent 3.2078  clip 0.11  ev 0.015 | ep_rew 0.426 | wall 146797s
+11:21:51  INFO  Update 1385/10000 | env-steps 181,534,720 | SPS 1438 (avg 1378) | pg 0.0044  vf 0.0157  ent 3.1075  clip 0.12  ev 0.015 | ep_rew 0.506 | wall 147265s
+11:30:06  INFO  Update 1390/10000 | env-steps 182,190,080 | SPS 1353 (avg 1372) | pg 0.0039  vf 0.0147  ent 3.1981  clip 0.12  ev 0.015 | ep_rew 0.438 | wall 147760s
+11:37:58  INFO  Update 1395/10000 | env-steps 182,845,440 | SPS 1439 (avg 1376) | pg 0.0042  vf 0.0147  ent 3.1806  clip 0.12  ev 0.015 | ep_rew 0.481 | wall 148232s
+11:46:05  INFO  Synced self-play opponent snapshot at update 1400
+11:46:05  INFO  Update 1400/10000 | env-steps 183,500,800 | SPS 1343 (avg 1366) | pg 0.0047  vf 0.0156  ent 3.2102  clip 0.11  ev 0.015 | ep_rew 0.448 | wall 148719s
+11:46:05  INFO  Saved checkpoint → checkpoints/policy_183500800.pt
+11:54:07  INFO  Update 1405/10000 | env-steps 184,156,160 | SPS 1386 (avg 1356) | pg 0.0035  vf 0.0157  ent 3.2622  clip 0.11  ev 0.015 | ep_rew 0.377 | wall 149201s
+12:02:03  INFO  Update 1410/10000 | env-steps 184,811,520 | SPS 1345 (avg 1368) | pg 0.0035  vf 0.0158  ent 3.1991  clip 0.12  ev 0.015 | ep_rew 0.424 | wall 149677s
+12:10:04  INFO  Update 1415/10000 | env-steps 185,466,880 | SPS 1355 (avg 1362) | pg 0.0037  vf 0.0160  ent 3.1816  clip 0.11  ev 0.015 | ep_rew 0.467 | wall 150158s
+12:17:59  INFO  Update 1420/10000 | env-steps 186,122,240 | SPS 1399 (avg 1370) | pg 0.0040  vf 0.0155  ent 3.1993  clip 0.12  ev 0.015 | ep_rew 0.403 | wall 150633s
+12:26:05  INFO  Update 1425/10000 | env-steps 186,777,600 | SPS 1345 (avg 1368) | pg 0.0036  vf 0.0156  ent 3.1575  clip 0.11  ev 0.015 | ep_rew 0.484 | wall 151119s
+12:34:00  INFO  Update 1430/10000 | env-steps 187,432,960 | SPS 1346 (avg 1369) | pg 0.0040  vf 0.0146  ent 3.1360  clip 0.11  ev 0.015 | ep_rew 0.542 | wall 151594s
+12:42:11  INFO  Update 1435/10000 | env-steps 188,088,320 | SPS 1306 (avg 1362) | pg 0.0040  vf 0.0156  ent 3.0938  clip 0.12  ev 0.015 | ep_rew 0.477 | wall 152085s
+12:50:12  INFO  Update 1440/10000 | env-steps 188,743,680 | SPS 1403 (avg 1357) | pg 0.0043  vf 0.0162  ent 3.1079  clip 0.12  ev 0.015 | ep_rew 0.449 | wall 152566s
+12:58:13  INFO  Update 1445/10000 | env-steps 189,399,040 | SPS 1320 (avg 1360) | pg 0.0044  vf 0.0164  ent 3.1656  clip 0.11  ev 0.015 | ep_rew 0.487 | wall 153047s
+13:06:02  INFO  Synced self-play opponent snapshot at update 1450
+13:06:02  INFO  Update 1450/10000 | env-steps 190,054,400 | SPS 1368 (avg 1365) | pg 0.0043  vf 0.0155  ent 3.2118  clip 0.11  ev 0.015 | ep_rew 0.475 | wall 153516s
+13:06:02  INFO  Saved checkpoint → checkpoints/policy_190054400.pt
+13:13:52  INFO  Update 1455/10000 | env-steps 190,709,760 | SPS 1338 (avg 1380) | pg 0.0037  vf 0.0152  ent 3.1590  clip 0.11  ev 0.015 | ep_rew 0.478 | wall 153986s
+13:21:54  INFO  Update 1460/10000 | env-steps 191,365,120 | SPS 1377 (avg 1379) | pg 0.0041  vf 0.0159  ent 3.1161  clip 0.11  ev 0.015 | ep_rew 0.465 | wall 154468s
+13:29:54  INFO  Update 1465/10000 | env-steps 192,020,480 | SPS 1370 (avg 1381) | pg 0.0042  vf 0.0169  ent 3.1455  clip 0.11  ev 0.015 | ep_rew 0.417 | wall 154948s
+13:38:01  INFO  Update 1470/10000 | env-steps 192,675,840 | SPS 1404 (avg 1368) | pg 0.0039  vf 0.0154  ent 3.1344  clip 0.11  ev 0.015 | ep_rew 0.443 | wall 155435s
+13:46:04  INFO  Update 1475/10000 | env-steps 193,331,200 | SPS 1352 (avg 1358) | pg 0.0040  vf 0.0143  ent 3.1285  clip 0.12  ev 0.015 | ep_rew 0.525 | wall 155918s
+13:54:11  INFO  Update 1480/10000 | env-steps 193,986,560 | SPS 1389 (avg 1355) | pg 0.0043  vf 0.0155  ent 3.1195  clip 0.11  ev 0.015 | ep_rew 0.431 | wall 156405s
+14:02:17  INFO  Update 1485/10000 | env-steps 194,641,920 | SPS 1360 (avg 1350) | pg 0.0043  vf 0.0145  ent 3.1097  clip 0.11  ev 0.015 | ep_rew 0.470 | wall 156891s
+14:10:19  INFO  Update 1490/10000 | env-steps 195,297,280 | SPS 1393 (avg 1354) | pg 0.0045  vf 0.0146  ent 3.0700  clip 0.12  ev 0.015 | ep_rew 0.486 | wall 157373s
+14:18:30  INFO  Update 1495/10000 | env-steps 195,952,640 | SPS 1305 (avg 1348) | pg 0.0041  vf 0.0154  ent 3.1438  clip 0.11  ev 0.015 | ep_rew 0.451 | wall 157864s
+14:26:38  INFO  Synced self-play opponent snapshot at update 1500
+14:26:39  INFO  Update 1500/10000 | env-steps 196,608,000 | SPS 1313 (avg 1347) | pg 0.0037  vf 0.0141  ent 3.1321  clip 0.11  ev 0.015 | ep_rew 0.460 | wall 158353s
+14:26:39  INFO  Saved checkpoint → checkpoints/policy_196608000.pt
+14:34:45  INFO  Update 1505/10000 | env-steps 197,263,360 | SPS 1332 (avg 1346) | pg 0.0040  vf 0.0144  ent 3.1717  clip 0.11  ev 0.015 | ep_rew 0.486 | wall 158839s
+14:42:50  INFO  Update 1510/10000 | env-steps 197,918,720 | SPS 1310 (avg 1344) | pg 0.0034  vf 0.0141  ent 3.1476  clip 0.11  ev 0.015 | ep_rew 0.506 | wall 159324s
+14:51:08  INFO  Update 1515/10000 | env-steps 198,574,080 | SPS 1311 (avg 1340) | pg 0.0037  vf 0.0152  ent 3.1238  clip 0.11  ev 0.015 | ep_rew 0.481 | wall 159822s
+14:59:20  INFO  Update 1520/10000 | env-steps 199,229,440 | SPS 1336 (avg 1337) | pg 0.0037  vf 0.0151  ent 3.1298  clip 0.11  ev 0.015 | ep_rew 0.506 | wall 160314s
+15:07:19  INFO  Update 1525/10000 | env-steps 199,884,800 | SPS 1370 (avg 1342) | pg 0.0040  vf 0.0144  ent 3.1935  clip 0.11  ev 0.015 | ep_rew 0.504 | wall 160793s
+15:15:35  INFO  Update 1530/10000 | env-steps 200,540,160 | SPS 1334 (avg 1335) | pg 0.0038  vf 0.0150  ent 3.1846  clip 0.11  ev 0.015 | ep_rew 0.447 | wall 161289s
+15:23:49  INFO  Update 1535/10000 | env-steps 201,195,520 | SPS 1350 (avg 1337) | pg 0.0044  vf 0.0143  ent 3.1638  clip 0.11  ev 0.015 | ep_rew 0.495 | wall 161783s
+15:32:00  INFO  Update 1540/10000 | env-steps 201,850,880 | SPS 1281 (avg 1338) | pg 0.0046  vf 0.0149  ent 3.1616  clip 0.11  ev 0.015 | ep_rew 0.511 | wall 162274s
+15:40:08  INFO  Update 1545/10000 | env-steps 202,506,240 | SPS 1406 (avg 1333) | pg 0.0043  vf 0.0144  ent 3.2208  clip 0.10  ev 0.015 | ep_rew 0.454 | wall 162762s
+15:48:11  INFO  Synced self-play opponent snapshot at update 1550
+15:48:11  INFO  Update 1550/10000 | env-steps 203,161,600 | SPS 1361 (avg 1342) | pg 0.0037  vf 0.0150  ent 3.2359  clip 0.10  ev 0.015 | ep_rew 0.475 | wall 163245s
+15:48:11  INFO  Saved checkpoint → checkpoints/policy_203161600.pt
+15:56:22  INFO  Update 1555/10000 | env-steps 203,816,960 | SPS 1353 (avg 1344) | pg 0.0034  vf 0.0146  ent 3.2991  clip 0.10  ev 0.015 | ep_rew 0.435 | wall 163736s
+16:04:23  INFO  Update 1560/10000 | env-steps 204,472,320 | SPS 1380 (avg 1351) | pg 0.0033  vf 0.0151  ent 3.2615  clip 0.10  ev 0.015 | ep_rew 0.467 | wall 164217s
+16:12:36  INFO  Update 1565/10000 | env-steps 205,127,680 | SPS 1328 (avg 1347) | pg 0.0033  vf 0.0151  ent 3.2126  clip 0.10  ev 0.015 | ep_rew 0.467 | wall 164710s
+16:20:46  INFO  Update 1570/10000 | env-steps 205,783,040 | SPS 1302 (avg 1341) | pg 0.0036  vf 0.0151  ent 3.2193  clip 0.10  ev 0.015 | ep_rew 0.454 | wall 165200s
+16:29:05  INFO  Update 1575/10000 | env-steps 206,438,400 | SPS 1315 (avg 1336) | pg 0.0032  vf 0.0153  ent 3.2258  clip 0.10  ev 0.015 | ep_rew 0.375 | wall 165699s
+16:37:13  INFO  Update 1580/10000 | env-steps 207,093,760 | SPS 1359 (avg 1331) | pg 0.0037  vf 0.0154  ent 3.2631  clip 0.10  ev 0.015 | ep_rew 0.432 | wall 166187s
+16:45:12  INFO  Update 1585/10000 | env-steps 207,749,120 | SPS 1379 (avg 1341) | pg 0.0038  vf 0.0147  ent 3.2962  clip 0.10  ev 0.015 | ep_rew 0.461 | wall 166666s
+16:53:15  INFO  Update 1590/10000 | env-steps 208,404,480 | SPS 1377 (avg 1346) | pg 0.0040  vf 0.0154  ent 3.2164  clip 0.10  ev 0.015 | ep_rew 0.466 | wall 167149s
+17:01:30  INFO  Update 1595/10000 | env-steps 209,059,840 | SPS 1286 (avg 1348) | pg 0.0041  vf 0.0155  ent 3.2612  clip 0.10  ev 0.015 | ep_rew 0.407 | wall 167644s
+17:09:43  INFO  Synced self-play opponent snapshot at update 1600
+17:09:43  INFO  Update 1600/10000 | env-steps 209,715,200 | SPS 1312 (avg 1345) | pg 0.0036  vf 0.0162  ent 3.2384  clip 0.11  ev 0.015 | ep_rew 0.464 | wall 168137s
+17:09:43  INFO  Saved checkpoint → checkpoints/policy_209715200.pt
+17:17:47  INFO  Update 1605/10000 | env-steps 210,370,560 | SPS 1369 (avg 1342) | pg 0.0036  vf 0.0149  ent 3.2461  clip 0.10  ev 0.015 | ep_rew 0.520 | wall 168621s
+17:25:47  INFO  Update 1610/10000 | env-steps 211,025,920 | SPS 1413 (avg 1344) | pg 0.0040  vf 0.0145  ent 3.2637  clip 0.10  ev 0.015 | ep_rew 0.434 | wall 169101s
+17:33:45  INFO  Update 1615/10000 | env-steps 211,681,280 | SPS 1350 (avg 1356) | pg 0.0032  vf 0.0154  ent 3.2727  clip 0.10  ev 0.015 | ep_rew 0.463 | wall 169579s
+17:41:46  INFO  Update 1620/10000 | env-steps 212,336,640 | SPS 1328 (avg 1364) | pg 0.0033  vf 0.0153  ent 3.1718  clip 0.10  ev 0.015 | ep_rew 0.456 | wall 170060s
+17:49:46  INFO  Update 1625/10000 | env-steps 212,992,000 | SPS 1355 (avg 1367) | pg 0.0042  vf 0.0154  ent 3.1708  clip 0.11  ev 0.015 | ep_rew 0.442 | wall 170539s
+17:57:57  INFO  Update 1630/10000 | env-steps 213,647,360 | SPS 1270 (avg 1359) | pg 0.0050  vf 0.0144  ent 3.1553  clip 0.10  ev 0.015 | ep_rew 0.557 | wall 171031s
+18:06:14  INFO  Update 1635/10000 | env-steps 214,302,720 | SPS 1287 (avg 1347) | pg 0.0032  vf 0.0153  ent 3.1195  clip 0.11  ev 0.015 | ep_rew 0.524 | wall 171528s

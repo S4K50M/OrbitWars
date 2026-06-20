@@ -27,6 +27,8 @@ from engine import TorchOrbitWarsEnv
 import RuleAgent as default_agent
 
 
+
+
 # ── Constants (mirrored from engine) ────────────────────────────────────────
 CENTER = 50.0
 ROT_RADIUS_LIMIT = 50.0
@@ -196,106 +198,83 @@ class OrbitWarsEncoder(ObservationEncoder):
 
     def decode_actions(
         self,
-        batch: DecisionBatch,
-        target_index: Tensor,
-        num_envs: int,
+        batch:        DecisionBatch,
+        gate_actions: torch.Tensor,   # [B, P] bool
+        tgt_actions:  torch.Tensor,   # [B, P] long
+        ship_frac:    torch.Tensor,   # [B, P] float [0,1]
+        num_envs:     int,
     ) -> list[list[Move]]:
-        SECONDARY_MIN_SHIPS = 15
-        SECONDARY_SEND_FRAC = 0.70
-
-        meta   = batch.metadata
-        px     = meta["planet_x"]
-        py     = meta["planet_y"]
-        owner  = meta["planet_owner"]
-        ships  = meta["planet_ships"]
-        pids   = meta["planet_id"]
-        alive  = meta["planet_alive"]
-        seats  = meta["player_per_env"]
-        B, P   = px.shape
-
-        # ── Unpack flat (src * P + tgt) action ──────────────────────────
-        flat    = target_index.clamp(0, P * P - 1)
-        src_idx = (flat // P).clamp(0, P - 1)
-        tgt_idx = (flat %  P).clamp(0, P - 1)
-
-        src_pid   = pids.gather(1,  src_idx.unsqueeze(1)).squeeze(1)
-        src_ships = ships.gather(1, src_idx.unsqueeze(1)).squeeze(1)
-        src_x     = px.gather(1,   src_idx.unsqueeze(1)).squeeze(1)
-        src_y     = py.gather(1,   src_idx.unsqueeze(1)).squeeze(1)
-        src_own   = owner.gather(1, src_idx.unsqueeze(1)).squeeze(1)
-
-        tgt_x   = px.gather(1,    tgt_idx.unsqueeze(1)).squeeze(1)
-        tgt_y   = py.gather(1,    tgt_idx.unsqueeze(1)).squeeze(1)
-        tgt_own = owner.gather(1, tgt_idx.unsqueeze(1)).squeeze(1)
-
-        # ── Intercept angle (primary) ────────────────────────────────────
-        angle  = _intercept_angle(src_x, src_y, tgt_x, tgt_y, meta, tgt_idx)
-        n_send = (src_ships.float() * 0.75).floor().long()
-
-        src_is_mine  = (src_own == seats)
-        tgt_not_mine = (tgt_own != seats)
-        tgt_alive    = alive.gather(1, tgt_idx.unsqueeze(1)).squeeze(1)
         
-        primary_valid = (
-            src_is_mine & tgt_not_mine & tgt_alive &
-            (n_send >= 5) & (src_idx != tgt_idx)
-        )
-
-        # ── Secondary sources ────────────────────────────────────────────
-        is_mine_mat = alive & (owner == seats.unsqueeze(1))   # [B, P]
-        pri_hot = torch.zeros(B, P, dtype=torch.bool, device=px.device)
-        pri_hot.scatter_(1, src_idx.unsqueeze(1), True)
-
-        sec_eligible = (
-            is_mine_mat
-            & ~pri_hot
-            & (ships >= SECONDARY_MIN_SHIPS)
-            & primary_valid.unsqueeze(1)
-        )   # [B, P]
-
-        tgt_x_exp = tgt_x.unsqueeze(1).expand(B, P)
-        tgt_y_exp = tgt_y.unsqueeze(1).expand(B, P)
-        sec_angle  = torch.atan2(tgt_y_exp - py, tgt_x_exp - px)   # [B, P]
-        sec_nsend  = (ships.float() * SECONDARY_SEND_FRAC).floor().long()   # [B, P]
-
-# ── CPU transfer (single call for all data) ───────────────────────
-        primary_valid_cpu = primary_valid.cpu().tolist()
-        src_pid_cpu       = src_pid.cpu().tolist()
-        angle_cpu         = angle.cpu().tolist()
-        n_send_cpu        = n_send.cpu().tolist()
-
-        sec_eligible_cpu  = sec_eligible.cpu()    
-        sec_pids_cpu      = pids.cpu()
-        sec_angle_cpu     = sec_angle.cpu()
-        sec_nsend_cpu     = sec_nsend.cpu()
-
-        MAX_SECONDARY_K   = 3 # <--- NEW: Hard limit to save SPS
+        MIN_GARRISON = 5  
         
+        meta  = batch.metadata
+        px, py   = meta["planet_x"], meta["planet_y"]
+        owner    = meta["planet_owner"]
+        ships    = meta["planet_ships"]
+        pids     = meta["planet_id"]
+        alive    = meta["planet_alive"]
+        seats    = meta["player_per_env"]
+        orb_r    = meta["planet_orb_r"]
+        cur_a    = meta["planet_cur_angle"]
+        ang_vel  = meta["angular_velocity"]   
+        B, P     = px.shape
+
+        is_mine_mat = alive & (owner == seats.unsqueeze(1))   
+
+        tgt_clamped = tgt_actions.clamp(0, P - 1)             
+        tgt_x = px.gather(1, tgt_clamped)                     
+        tgt_y = py.gather(1, tgt_clamped)
+
+        dx   = tgt_x - px
+        dy   = tgt_y - py
+        dist = (dx * dx + dy * dy).sqrt().clamp(min=1e-3)
+        t_est    = dist / 2.3 # _FLEET_SPEED
+
+        tgt_orb_r = orb_r.gather(1, tgt_clamped)              
+        tgt_cur_a = cur_a.gather(1, tgt_clamped)              
+
+        future_a = tgt_cur_a + ang_vel.unsqueeze(1) * t_est
+        future_x = 50.0 + tgt_orb_r * torch.cos(future_a) # CENTER
+        future_y = 50.0 + tgt_orb_r * torch.sin(future_a)
+
+        intercept_angle = torch.atan2(future_y - py, future_x - px)
+        direct_angle    = torch.atan2(dy, dx)
+        angle_mat = torch.where(tgt_orb_r > 2.0, intercept_angle, direct_angle)  
+
+        available = (ships.float() - MIN_GARRISON).clamp(min=0.0)  
+        n_send    = (ship_frac * available).floor().long()          
+
+        tgt_own   = owner.gather(1, tgt_clamped)                   
+        tgt_alive = alive.gather(1, tgt_clamped)                   
+        not_self  = (torch.arange(P, device=px.device).unsqueeze(0) != tgt_clamped)  
+
+        valid = (
+            gate_actions.bool()
+            & is_mine_mat
+            & (tgt_own != seats.unsqueeze(1))   
+            & tgt_alive
+            & not_self
+            & (n_send >= 1)                      
+        )   
+
+        valid_cpu   = valid.cpu()
+        pids_cpu    = pids.cpu()
+        angle_cpu   = angle_mat.cpu()
+        n_send_cpu  = n_send.cpu()
+
         moves: list[list[Move]] = []
         for i in range(B):
             env_moves: list[Move] = []
-
-            if primary_valid_cpu[i]:
-                env_moves.append([
-                    int(src_pid_cpu[i]),
-                    float(angle_cpu[i]),
-                    int(n_send_cpu[i]),
-                ])
-
-            sec_count = 0
             for p in range(P):
-                if sec_eligible_cpu[i, p] and sec_count < MAX_SECONDARY_K:
+                if valid_cpu[i, p]:
                     env_moves.append([
-                        int(sec_pids_cpu[i, p].item()),
-                        float(sec_angle_cpu[i, p].item()),
-                        int(sec_nsend_cpu[i, p].item()),
+                        int(pids_cpu[i, p].item()),
+                        float(angle_cpu[i, p].item()),
+                        int(n_send_cpu[i, p].item()),
                     ])
-                    sec_count += 1
-
             moves.append(env_moves)
         return moves
-        
-                
+
 # ── Threaded multi-agent opponent ────────────────────────────────────────────
 
 class MultiAgentOpponent(Opponent):
