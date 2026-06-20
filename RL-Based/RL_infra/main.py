@@ -24,7 +24,7 @@ else:
     device = torch.device("cpu")
 
 # --- UPDATE THIS TO YOUR LATEST CHECKPOINT ---
-CHECKPOINT_PATH = "/home/saksham/Documents/kaggle/OrbitWars/RL-Based/RL_infra/checkpoints/bc_2p_baseline.pt" 
+CHECKPOINT_PATH = "/home/saksham/Documents/kaggle/OrbitWars/RL-Based/RL_infra/checkpoints/bc_2p_baseline_up600.pt" 
 
 # Instantiate the upgraded V2 Architecture
 policy = OrbitWarsPolicy(feat_dim=16, d_model=128, n_heads=4, n_layers=4).to(device)
@@ -43,7 +43,6 @@ else:
 
 # Cache initial planets on turn 0 for orbital geometry calculations
 _initial_planets_cache = None
-
 def agent(obs):
     """
     The entry point for Kaggle / Local evaluation.
@@ -73,8 +72,6 @@ def agent(obs):
     ships_norm = (parsed.ships / 1000.0).clamp(max=1.0)
     prod_norm = (parsed.prod / 5.0).clamp(max=1.0)
     
-# ... [Keep everything above this the same] ...
-    
     # Calculate angles natively
     dx0 = obs_tensors["initial_planets"][..., 2] - CENTER
     dy0 = obs_tensors["initial_planets"][..., 3] - CENTER
@@ -86,7 +83,7 @@ def agent(obs):
     
     dist_sun_norm = (parsed.orb_r / float(ROT_RADIUS_LIMIT)).clamp(max=1.0)
     
-    # V2 FEATURES: Reachability & Proximity
+    # ── V2 FEATURES: Reachability & Proximity ──
     px = parsed.x
     py = parsed.y
     dx_all = px.unsqueeze(1) - px.unsqueeze(0)   # [P, P]
@@ -100,7 +97,7 @@ def agent(obs):
     reachable = (dist_nearest_owned < 35.0).float()
     dist_nearest_norm = (dist_nearest_owned / 70.0).clamp(max=1.0)
 
-    # --- NEW V3 FEATURES: Global Game Phase & Economy ---
+    # ── V3 FEATURES: Global Game Phase & Economy ──
     P = parsed.x.shape[0]
     step_norm = torch.tensor([step / 500.0], device=device).expand(P)
     
@@ -117,13 +114,11 @@ def agent(obs):
         torch.sin(orb_a0), torch.cos(orb_a0),
         parsed.is_orbiting.float(), parsed.alive.float(),
         reachable, dist_nearest_norm,
-        step_norm, prod_ratio # <--- Added here
+        step_norm, prod_ratio
     ], dim=-1)
 
     # Add the dummy batch dimension ONLY for the network -> [1, P, 16]
     features = features_2d.unsqueeze(0)
-    
-    # ... [Rest of the file remains exactly the same] ...
     alive_mask_batched = parsed.alive.unsqueeze(0)
     is_mine_mask_batched = parsed.owned.bool().unsqueeze(0)
 
@@ -135,28 +130,60 @@ def agent(obs):
         metadata={}
     )
 
-    # Ask the Neural Network for the best target!
+    # ── NEW MULTI-HEAD EVALUATION ──
     with torch.no_grad():
         out = policy(batch)
-        flat_idx = out.target_logits.argmax(dim=-1).item()
+        
+        # Deterministic Evaluation (No sampling noise for actual Kaggle play)
+        # Gate > 0 means the network is confident this planet should fire
+        gate_actions = (out.gate_logits[0] > 0) & is_mine_mask_batched[0]
+        tgt_actions  = out.tgt_logits[0].argmax(dim=-1)
+        ship_frac    = out.ship_frac[0]
 
-    # --- NEW V2 DECODER: Unpack Bilinear flat index ---
-    P = features_2d.shape[0]
-    src_idx = flat_idx // P
-    tgt_idx = flat_idx % P
-    
     moves = []
-    
-    src_id = int(obs_tensors["planets"][src_idx, 0].item())
-    src_ships = float(parsed.ships[src_idx].item())
-    
-    # Send 75% of the garrison (matching V2 training)
-    n_send = int(math.floor(src_ships * 0.75))
-    
-    if src_idx != tgt_idx and n_send >= 5:
-        src_x, src_y = parsed.x[src_idx], parsed.y[src_idx]
-        tgt_x, tgt_y = parsed.x[tgt_idx], parsed.y[tgt_idx]
-        angle = float(torch.atan2(tgt_y - src_y, tgt_x - src_x).item())
-        moves.append([src_id, angle, n_send])
+    MIN_GARRISON = 5
+
+    # Pull variables to CPU for standard Python math operations
+    gate_cpu = gate_actions.cpu().tolist()
+    tgt_cpu  = tgt_actions.cpu().tolist()
+    frac_cpu = ship_frac.cpu().tolist()
+
+    # Iterate over every planet on the board
+    for p in range(P):
+        if gate_cpu[p]:  # If the network's launch gate fired for this specific planet
+            tgt = tgt_cpu[p]
+            
+            src_ships = float(parsed.ships[p].item())
+            # Ensure we always leave a minimum garrison behind
+            available = max(src_ships - MIN_GARRISON, 0.0)
+            n_send = int(math.floor(frac_cpu[p] * available))
+            
+            # If we aren't targeting ourselves and have ships to send
+            if tgt != p and n_send >= 1:
+                src_x, src_y = parsed.x[p].item(), parsed.y[p].item()
+                tgt_x, tgt_y = parsed.x[tgt].item(), parsed.y[tgt].item()
+                
+                # Intercept Geometry 
+                dx = tgt_x - src_x
+                dy = tgt_y - src_y
+                dist = math.sqrt(dx**2 + dy**2)
+                t_est = dist / 2.3  # Approximate Fleet Speed
+                
+                tgt_orb_r = float(parsed.orb_r[tgt].item())
+                
+                if tgt_orb_r > 2.0:
+                    # Moving target: Lead the intercept angle
+                    tgt_cur_a = math.atan2(tgt_y - CENTER, tgt_x - CENTER)
+                    ang_vel = float(obs_tensors["angular_velocity"].item())
+                    future_a = tgt_cur_a + ang_vel * t_est
+                    future_x = CENTER + tgt_orb_r * math.cos(future_a)
+                    future_y = CENTER + tgt_orb_r * math.sin(future_a)
+                    angle = math.atan2(future_y - src_y, future_x - src_x)
+                else:
+                    # Static target (e.g. sun/center clusters if applicable)
+                    angle = math.atan2(dy, dx)
+                
+                src_id = int(obs_tensors["planets"][p, 0].item())
+                moves.append([src_id, angle, n_send])
 
     return moves
