@@ -1,5 +1,4 @@
 """OrbitWars PPO training script.
-
 Hardware: targets cuda:4 (NVIDIA RTX A6000, ~48 GB free).
 
 Usage

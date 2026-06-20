@@ -8,7 +8,7 @@ from kaggle_environments import make
 # Configuration
 # ---------------------------------------------------------
 # Define our competitors - Update these paths as needed
-agent_baseline = "/home/saksham/Documents/kaggle/OrbitWars/agents/b-Snipe+No-BOM.py"
+agent_baseline = "/home/saksham/Documents/kaggle/OrbitWars/agents/e-tankman.py"
 agent_test = "/home/saksham/Documents/kaggle/OrbitWars/RL-Based/RL_infra/main.py"
 
 # Number of unique map seeds to generate
