@@ -24,10 +24,10 @@ else:
     device = torch.device("cpu")
 
 # --- UPDATE THIS TO YOUR LATEST CHECKPOINT ---
-CHECKPOINT_PATH = "/home/saksham/Documents/kaggle/OrbitWars/RL-Based/RL_infra/checkpoints/policy_72089600.pt" 
+CHECKPOINT_PATH = "/home/saksham/Documents/kaggle/OrbitWars/RL-Based/RL_infra/checkpoints/bc_2p_baseline.pt" 
 
 # Instantiate the upgraded V2 Architecture
-policy = OrbitWarsPolicy(feat_dim=14, d_model=96, n_heads=4, n_layers=3).to(device)
+policy = OrbitWarsPolicy(feat_dim=16, d_model=128, n_heads=4, n_layers=4).to(device)
 
 if os.path.exists(CHECKPOINT_PATH):
     checkpoint = torch.load(CHECKPOINT_PATH, map_location=device)
@@ -100,7 +100,8 @@ def agent(obs):
     reachable = (dist_nearest_owned < 35.0).float()
     dist_nearest_norm = (dist_nearest_owned / 70.0).clamp(max=1.0)
 
-    # ── NEW V3 FEATURES: Global Game Phase & Economy ──
+    # --- NEW V3 FEATURES: Global Game Phase & Economy ---
+    P = parsed.x.shape[0]
     step_norm = torch.tensor([step / 500.0], device=device).expand(P)
     
     prod = parsed.prod
