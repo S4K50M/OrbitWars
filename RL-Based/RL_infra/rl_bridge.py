@@ -198,14 +198,13 @@ class OrbitWarsEncoder(ObservationEncoder):
 
     def decode_actions(
         self,
-        batch:        DecisionBatch,
-        gate_actions: torch.Tensor,   # [B, P] bool
-        tgt_actions:  torch.Tensor,   # [B, P] long
-        ship_frac:    torch.Tensor,   # [B, P] float [0,1]
-        num_envs:     int,
+        batch: DecisionBatch,
+        flow_matrix: torch.Tensor, # [B, P, P] from the policy
+        num_envs: int,
     ) -> list[list[Move]]:
         
         MIN_GARRISON = 5  
+        LAUNCH_THRESHOLD = 0.15 # Continuous Hold Gate filter
         
         meta  = batch.metadata
         px, py   = meta["planet_x"], meta["planet_y"]
@@ -219,60 +218,53 @@ class OrbitWarsEncoder(ObservationEncoder):
         ang_vel  = meta["angular_velocity"]   
         B, P     = px.shape
 
-        is_mine_mat = alive & (owner == seats.unsqueeze(1))   
+        # Create valid mask grids [B, P, P]
+        is_mine = (alive & (owner == seats.unsqueeze(1))).unsqueeze(2).expand(B, P, P)
+        tgt_alive = alive.unsqueeze(1).expand(B, P, P)
+        tgt_not_mine = (owner != seats.unsqueeze(1)).unsqueeze(1).expand(B, P, P)
+        
+        eye = torch.eye(P, device=px.device, dtype=torch.bool).unsqueeze(0).expand(B, P, P)
 
-        tgt_clamped = tgt_actions.clamp(0, P - 1)             
-        tgt_x = px.gather(1, tgt_clamped)                     
-        tgt_y = py.gather(1, tgt_clamped)
+        # Condition: Value must break threshold, source is ours, target is valid, not self
+        valid_launches = (flow_matrix > LAUNCH_THRESHOLD) & is_mine & tgt_alive & tgt_not_mine & ~eye
 
-        dx   = tgt_x - px
-        dy   = tgt_y - py
-        dist = (dx * dx + dy * dy).sqrt().clamp(min=1e-3)
-        t_est    = dist / 2.3 # _FLEET_SPEED
+        moves: list[list[Move]] = [[] for _ in range(B)]
+        
+        # Scan active coordinates
+        batch_indices, src_indices, tgt_indices = torch.nonzero(valid_launches, as_tuple=True)
+        
+        if batch_indices.numel() == 0:
+            return moves
 
-        tgt_orb_r = orb_r.gather(1, tgt_clamped)              
-        tgt_cur_a = cur_a.gather(1, tgt_clamped)              
+        for b, s, t in zip(batch_indices.tolist(), src_indices.tolist(), tgt_indices.tolist()):
+            src_id = int(pids[b, s].item())
+            src_ships = float(ships[b, s].item())
+            
+            available = max(src_ships - MIN_GARRISON, 0.0)
+            n_send = int(math.floor(flow_matrix[b, s, t].item() * available))
 
-        future_a = tgt_cur_a + ang_vel.unsqueeze(1) * t_est
-        future_x = 50.0 + tgt_orb_r * torch.cos(future_a) # CENTER
-        future_y = 50.0 + tgt_orb_r * torch.sin(future_a)
+            if n_send >= 1:
+                sx, sy = px[b, s], py[b, s]
+                tx, ty = px[b, t], py[b, t]
+                
+                # Orbit Intercept calculation
+                dx, dy = tx - sx, ty - sy
+                dist = math.sqrt(dx*dx + dy*dy)
+                t_est = dist / 2.3
+                
+                t_orb = float(orb_r[b, t].item())
+                if t_orb > 2.0:
+                    t_angle = float(cur_a[b, t].item())
+                    vel = float(ang_vel[b].item())
+                    future_a = t_angle + vel * t_est
+                    fx = 50.0 + t_orb * math.cos(future_a)
+                    fy = 50.0 + t_orb * math.sin(future_a)
+                    angle = math.atan2(fy - sy, fx - sx)
+                else:
+                    angle = math.atan2(dy, dx)
 
-        intercept_angle = torch.atan2(future_y - py, future_x - px)
-        direct_angle    = torch.atan2(dy, dx)
-        angle_mat = torch.where(tgt_orb_r > 2.0, intercept_angle, direct_angle)  
-
-        available = (ships.float() - MIN_GARRISON).clamp(min=0.0)  
-        n_send    = (ship_frac * available).floor().long()          
-
-        tgt_own   = owner.gather(1, tgt_clamped)                   
-        tgt_alive = alive.gather(1, tgt_clamped)                   
-        not_self  = (torch.arange(P, device=px.device).unsqueeze(0) != tgt_clamped)  
-
-        valid = (
-            gate_actions.bool()
-            & is_mine_mat
-            & (tgt_own != seats.unsqueeze(1))   
-            & tgt_alive
-            & not_self
-            & (n_send >= 1)                      
-        )   
-
-        valid_cpu   = valid.cpu()
-        pids_cpu    = pids.cpu()
-        angle_cpu   = angle_mat.cpu()
-        n_send_cpu  = n_send.cpu()
-
-        moves: list[list[Move]] = []
-        for i in range(B):
-            env_moves: list[Move] = []
-            for p in range(P):
-                if valid_cpu[i, p]:
-                    env_moves.append([
-                        int(pids_cpu[i, p].item()),
-                        float(angle_cpu[i, p].item()),
-                        int(n_send_cpu[i, p].item()),
-                    ])
-            moves.append(env_moves)
+                moves[b].append([src_id, angle, n_send])
+                
         return moves
 
 # ── Threaded multi-agent opponent ────────────────────────────────────────────

@@ -117,20 +117,12 @@ class GpuVectorEnv:
     def step(
         self,
         learner_batch: DecisionBatch,
-        gate_actions: torch.Tensor,   # <-- NEW: Replaced learner_target_index
-        tgt_actions: torch.Tensor,    # <-- NEW
-        ship_frac: torch.Tensor,      # <-- NEW
+        flow_matrix: torch.Tensor, # Expected shape: [B, P, P]
     ) -> StepResult:
         
-        if gate_actions.shape[0] != self.num_envs:
-            raise ValueError(
-                f"gate_actions batch size ({gate_actions.shape[0]}) does not match "
-                f"environment count ({self.num_envs})"
-            )
-
-        # Pass all 3 multi-head tensors to the newly upgraded decoder
+        # Simply hand the flow matrix over to the encoder
         learner_moves = self.encoder.decode_actions(
-            learner_batch, gate_actions, tgt_actions, ship_frac, self.num_envs
+            learner_batch, flow_matrix, self.num_envs
         )
 
         if self.opponent is not None and self._opp_seat_tensors:

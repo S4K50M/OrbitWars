@@ -26,6 +26,7 @@ from pathlib import Path
 # Fragmentation fix for large batch attention
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:256"
 
+# pyrefly: ignore [missing-import]
 import torch
 torch.set_float32_matmul_precision('high')
 import torch.nn as nn
@@ -135,28 +136,36 @@ def collect_rollout(
     P = batch.policy_input.features.shape[1]
     feat_dim = batch.policy_input.features.shape[2]
 
-    obs_feat   = torch.zeros(rollout_steps, B, P, feat_dim, device=device)
-    obs_alive  = torch.zeros(rollout_steps, B, P, dtype=torch.bool, device=device)
-    actions    = torch.zeros(rollout_steps, B, dtype=torch.long, device=device)
-    log_probs  = torch.zeros(rollout_steps, B, device=device)
-    values     = torch.zeros(rollout_steps, B, device=device)
-    rewards    = torch.zeros(rollout_steps, B, device=device)
-    dones      = torch.zeros(rollout_steps, B, dtype=torch.bool, device=device)
+    obs_feat    = torch.zeros(rollout_steps, B, P, feat_dim, device=device)
+    obs_alive   = torch.zeros(rollout_steps, B, P, dtype=torch.bool, device=device)
+    obs_is_mine = torch.zeros(rollout_steps, B, P, dtype=torch.bool, device=device)
+    actions     = torch.zeros(rollout_steps, B, P, P, dtype=torch.float32, device=device)
+    log_probs   = torch.zeros(rollout_steps, B, device=device)
+    values      = torch.zeros(rollout_steps, B, device=device)
+    rewards     = torch.zeros(rollout_steps, B, device=device)
+    dones       = torch.zeros(rollout_steps, B, dtype=torch.bool, device=device)
 
     ep_rewards: list[float] = []
 
     for t in range(rollout_steps):
         inp: RLPolicyInput = batch.policy_input
-        obs_feat[t]  = inp.features
-        obs_alive[t] = inp.alive_mask
-        
-        # Notice we do NOT track obs_is_mine here to keep the RolloutBuffer clean.
-        # We will dynamically recreate it in the PPOTrainer using feature [0].
+        obs_feat[t]    = inp.features
+        obs_alive[t]   = inp.alive_mask
+        obs_is_mine[t] = inp.is_mine_mask
 
         out = policy(batch)
-        dist = torch.distributions.Categorical(logits=out.target_logits)
+        
+        # Sample continuous exploration matrix
+        dist = torch.distributions.Normal(out.flow_matrix, out.flow_logstd.exp())
         act  = dist.sample()
-        lp   = dist.log_prob(act)
+        
+        # Valid mask
+        src_ok = inp.is_mine_mask.unsqueeze(2).expand(B, P, P)
+        tgt_ok = (inp.alive_mask & ~inp.is_mine_mask).unsqueeze(1).expand(B, P, P)
+        eye = torch.eye(P, device=device, dtype=torch.bool).unsqueeze(0)
+        mask = src_ok & tgt_ok & ~eye
+        
+        lp   = (dist.log_prob(act) * mask).sum(dim=(1,2))
         val  = out.value
 
         result = env.step(batch, act)
@@ -178,6 +187,7 @@ def collect_rollout(
     buf = RolloutBuffer(
         obs_features=obs_feat,
         obs_alive=obs_alive,
+        obs_is_mine=obs_is_mine,
         actions=actions,
         log_probs=log_probs,
         values=values,
@@ -224,7 +234,7 @@ def main():
     for _ in range(3):
         with torch.no_grad():
             out = policy(batch)
-            dist = torch.distributions.Categorical(logits=out.target_logits)
+            dist = torch.distributions.Normal(out.flow_matrix, out.flow_logstd.exp())
             act  = dist.sample()
         result = env.step(batch, act)
         batch  = result.next_batch

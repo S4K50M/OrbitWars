@@ -1,16 +1,39 @@
 Starting Live Behavioral Cloning on cuda:4...
 Successfully completed first update. GPU/CPU Pipeline healthy.
-Update   50/1500 | Loss: 3.0282 | SPS: 9 | Time: 706.4s
-Update  100/1500 | Loss: 2.9762 | SPS: 8 | Time: 776.2s
-Update  150/1500 | Loss: 2.8190 | SPS: 8 | Time: 807.5s
-Update  200/1500 | Loss: 2.7533 | SPS: 8 | Time: 789.2s
-Update  250/1500 | Loss: 2.6975 | SPS: 8 | Time: 769.3s
-Update  300/1500 | Loss: 2.5591 | SPS: 8 | Time: 793.9s
+Update   50/1500 | Loss: 0.0689 | SPS: 9 | Time: 688.6s
+Update  100/1500 | Loss: 0.0416 | SPS: 8 | Time: 760.6s
+Update  150/1500 | Loss: 0.0342 | SPS: 8 | Time: 793.3s
+Update  200/1500 | Loss: 0.0251 | SPS: 8 | Time: 776.9s
+Update  250/1500 | Loss: 0.0227 | SPS: 9 | Time: 746.5s
+Update  300/1500 | Loss: 0.0221 | SPS: 8 | Time: 777.2s
 --> Interim Checkpoint saved: checkpoints/bc_2p_baseline_up300.pt
-Update  350/1500 | Loss: 2.5790 | SPS: 8 | Time: 771.7s
-Update  400/1500 | Loss: 2.5720 | SPS: 8 | Time: 776.7s
-Update  450/1500 | Loss: 2.5371 | SPS: 8 | Time: 791.0s
-Update  500/1500 | Loss: 2.6047 | SPS: 8 | Time: 791.5s
-Update  550/1500 | Loss: 2.5749 | SPS: 8 | Time: 763.3s
-Update  600/1500 | Loss: 2.6219 | SPS: 8 | Time: 799.7s
+Update  350/1500 | Loss: 0.0207 | SPS: 8 | Time: 763.1s
+Update  400/1500 | Loss: 0.0187 | SPS: 8 | Time: 776.5s
+Update  450/1500 | Loss: 0.0183 | SPS: 8 | Time: 757.7s
+Update  500/1500 | Loss: 0.0181 | SPS: 8 | Time: 769.7s
+Update  550/1500 | Loss: 0.0245 | SPS: 8 | Time: 761.0s
+Update  600/1500 | Loss: 0.0223 | SPS: 8 | Time: 794.5s
 --> Interim Checkpoint saved: checkpoints/bc_2p_baseline_up600.pt
+Update  650/1500 | Loss: 0.0209 | SPS: 8 | Time: 795.1s
+Update  700/1500 | Loss: 0.0205 | SPS: 8 | Time: 772.6s
+Update  750/1500 | Loss: 0.0209 | SPS: 8 | Time: 757.4s
+Update  800/1500 | Loss: 0.0204 | SPS: 8 | Time: 775.3s
+Update  850/1500 | Loss: 0.0208 | SPS: 8 | Time: 784.5s
+Update  900/1500 | Loss: 0.0192 | SPS: 8 | Time: 793.5s
+--> Interim Checkpoint saved: checkpoints/bc_2p_baseline_up900.pt
+Update  950/1500 | Loss: 0.0196 | SPS: 8 | Time: 783.6s
+Update 1000/1500 | Loss: 0.0189 | SPS: 8 | Time: 785.7s
+Update 1050/1500 | Loss: 0.0194 | SPS: 8 | Time: 768.2s
+Update 1100/1500 | Loss: 0.0191 | SPS: 8 | Time: 787.9s
+Update 1150/1500 | Loss: 0.0168 | SPS: 8 | Time: 776.1s
+Update 1200/1500 | Loss: 0.0174 | SPS: 8 | Time: 787.6s
+--> Interim Checkpoint saved: checkpoints/bc_2p_baseline_up1200.pt
+Update 1250/1500 | Loss: 0.0184 | SPS: 8 | Time: 769.9s
+Update 1300/1500 | Loss: 0.0186 | SPS: 8 | Time: 778.6s
+Update 1350/1500 | Loss: 0.0195 | SPS: 8 | Time: 770.6s
+Update 1400/1500 | Loss: 0.0211 | SPS: 8 | Time: 768.7s
+Update 1450/1500 | Loss: 0.0209 | SPS: 8 | Time: 771.9s
+Update 1500/1500 | Loss: 0.0204 | SPS: 8 | Time: 771.8s
+--> Interim Checkpoint saved: checkpoints/bc_2p_baseline_up1500.pt
+
+Training Complete! Baseline saved to: checkpoints/bc_2p_baseline.pt

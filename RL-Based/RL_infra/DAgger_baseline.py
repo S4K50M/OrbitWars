@@ -28,14 +28,12 @@ MAX_PLANETS = 40
 UPDATES = 1500         
 WAIT_KEEP_PROB = 0.10  
 
-def get_all_teacher_labels(engine, teacher_moves):
+def get_flow_labels(engine, teacher_moves):
     B, P = engine.B, engine.P
     device = engine.device
 
-    gate_labels = torch.zeros(B, P, dtype=torch.float32, device=device)
-    tgt_labels  = torch.zeros(B, P, dtype=torch.long, device=device)
-    frac_labels = torch.zeros(B, P, dtype=torch.float32, device=device)
-    has_move    = torch.zeros(B, dtype=torch.bool, device=device)
+    flow_labels = torch.zeros(B, P, P, dtype=torch.float32, device=device)
+    has_move = torch.zeros(B, dtype=torch.bool, device=device)
 
     px, py = engine.planet_x, engine.planet_y
     pids   = engine.planet_id
@@ -43,8 +41,7 @@ def get_all_teacher_labels(engine, teacher_moves):
 
     for b in range(B):
         moves = teacher_moves[b]
-        if not moves:
-            continue
+        if not moves: continue
         has_move[b] = True
 
         for src_id, angle, n_ships in moves:
@@ -59,15 +56,13 @@ def get_all_teacher_labels(engine, teacher_moves):
             diffs.masked_fill_(pids[b] < 0, 999.0)
             
             best_diff, tgt_p = diffs.min(0)
-            if best_diff.item() >= 999.0: continue
+            if best_diff.item() >= 0.5: continue  # drop noisy misaligned vectors
 
-            gate_labels[b, p] = 1.0
-            tgt_labels[b, p]  = tgt_p.item()
-            # Calculate fraction based on available ships above garrison (5)
             available = max(ships[b, p].item() - 5.0, 1.0)
-            frac_labels[b, p] = min(n_ships / available, 1.0)
+            # Encode exact fraction directly into the spatial coordinate coordinate matrix
+            flow_labels[b, p, tgt_p.item()] = min(n_ships / available, 1.0)
 
-    return gate_labels, tgt_labels, frac_labels, has_move
+    return flow_labels, has_move
 
 
 def main():
@@ -101,11 +96,12 @@ def main():
         optimizer.zero_grad()
 
         # 1. Forward Pass
-        gate_logits, tgt_logits_3d, frac_pred = policy.bc_forward(batch)
+        out = policy(batch)
+        flow_pred = out.flow_matrix
 
         # 2. Get Teacher Labels
         teacher_moves = teacher.act(env.engine, env._learner_seat_tensor)
-        gate_labels, tgt_labels, frac_labels, has_move = get_all_teacher_labels(env.engine, teacher_moves)
+        flow_labels, has_move = get_flow_labels(env.engine, teacher_moves)
 
         # 3. Filter passivity
         keep_wait = torch.rand(NUM_ENVS, device=device) < WAIT_KEEP_PROB
@@ -113,37 +109,34 @@ def main():
         
         loss = 0.0
         if train_mask.any():
-            # A) Gate Loss (Binary Cross Entropy) - Rebalances the "No-Op" dominance
-            gate_loss = F.binary_cross_entropy_with_logits(
-                gate_logits[train_mask],
-                gate_labels[train_mask],
-                pos_weight=torch.tensor([3.0], device=device),
-            )
+            # Filter active environments
+            pred_slice = flow_pred[train_mask]
+            label_slice = flow_labels[train_mask]
 
-            # Mask to only evaluate Target and Fraction where the teacher actually fired
-            launched = gate_labels[train_mask].bool()   # [valid_B, P]
-            
-            if launched.any():
-                # B) Target Loss (Cross Entropy)
-                tgt_flat    = tgt_logits_3d[train_mask].reshape(-1, env.engine.P)
-                label_flat  = tgt_labels[train_mask].reshape(-1)
-                active_flat = launched.reshape(-1)
-                
-                tgt_loss = F.cross_entropy(tgt_flat[active_flat], label_flat[active_flat])
-                
-                # C) Fraction Loss (Mean Squared Error)
-                frac_loss = F.mse_loss(
-                    frac_pred[train_mask][launched].clamp(0, 1),
-                    frac_labels[train_mask][launched].clamp(0, 1),
-                )
-            else:
-                # Keep graph connected even if no planets launched this batch
-                tgt_loss = gate_loss * 0.0   
-                frac_loss = gate_loss * 0.0
+            # Mask valid actions to prevent scale suppression over P*P matrix
+            inp = batch.policy_input
+            src_ok = inp.is_mine_mask.unsqueeze(2).expand_as(flow_pred)
+            tgt_ok = (inp.alive_mask & ~inp.is_mine_mask).unsqueeze(1).expand_as(flow_pred)
+            eye = torch.eye(flow_pred.shape[1], device=device, dtype=torch.bool).unsqueeze(0)
+            valid_mask = src_ok & tgt_ok & ~eye
+            valid_slice = valid_mask[train_mask]
 
-            # --- THE COMPOSITE LOSS ---
-            loss = gate_loss + tgt_loss + (0.5 * frac_loss)
+            # CRITICAL FIX: Scale weights to combat scale suppression
+            # Active launches get a 15x gradient boost; passive cells get 1x
+            loss_weights = torch.where(label_slice > 0.0, 15.0, 1.0)
+
+            # Huber loss handles continuous regression gracefully without blowing up gradients
+            base_loss = F.huber_loss(pred_slice, label_slice, delta=0.2, reduction="none")
             
+            # Apply weights and valid mask
+            masked_loss = (base_loss * loss_weights) * valid_slice
+            
+            valid_count = valid_slice.sum().clamp(min=1)
+            loss = masked_loss.sum() / valid_count
+            
+            # Dummy add flow_logstd to loss so it receives gradients (keeps PyTorch distributed/optimizers happy)
+            loss = loss + 0.0 * out.flow_logstd.sum()
+
             if torch.isfinite(loss):
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(policy.parameters(), MAX_GRAD_NORM)
@@ -152,10 +145,7 @@ def main():
                 trained_steps += 1
 
         # 4. Step Environment Forward using Teacher Actions
-        # We pass dummy fractions of 0.75 because the environment step logic uses them 
-        # when simulating the teacher's exact moves.
-        dummy_frac = torch.ones_like(gate_labels) * 0.75 
-        result = env.step(batch, gate_labels, tgt_labels, dummy_frac)
+        result = env.step(batch, flow_labels) 
         batch = result.next_batch
         
         if update == 1: 
